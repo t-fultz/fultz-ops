@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Fultz Ops">
+<meta name="theme-color" content="#1f3a5f">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Fultz Ops</title>
+<style>
+  :root {
+    --navy: #1f3a5f; --navy-2: #2c5282; --ink: #1d2530; --muted: #5b6573; --line: #e1e5ea; --bg: #f2f4f7;
+    --card: #fff; --green: #2f855a; --red: #c53030; --amber: #b7791f; --chip: #eef2f7; --chip-on: #1f3a5f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #e8ecf1; --muted: #9aa5b3; --line: #2c333d; --bg: #121519; --card: #1b2027; --chip: #252c35; --navy-2: #8db4e6; }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 -apple-system, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif; }
+  body { padding-bottom: calc(74px + env(safe-area-inset-bottom)); }
+  header { position: sticky; top: 0; z-index: 10; background: var(--navy); color: #fff; padding: calc(10px + env(safe-area-inset-top)) 16px 10px; display: flex; align-items: center; gap: 10px; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .sync { margin-left: auto; font-size: 12px; opacity: .85; display: flex; align-items: center; gap: 6px; }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: #68d391; }
+  header .dot.busy { background: #f6e05e; } header .dot.err { background: #fc8181; }
+  header button { background: none; border: 0; color: #fff; font-size: 20px; padding: 4px 6px; }
+  main { padding: 14px 14px 0; max-width: 640px; margin: 0 auto; }
+  .card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; border: 1px solid var(--line); }
+  .muted { color: var(--muted); } .tiny { font-size: 13px; } .num { font-variant-numeric: tabular-nums; }
+  label.f { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, select, textarea { width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--card); border: 1px solid #c9d0d8; border-radius: 10px; padding: 11px 12px; -webkit-appearance: none; appearance: none; }
+  select { background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 32px; }
+  @media (prefers-color-scheme: dark) { input, select, textarea { border-color: #3a4350; } }
+  textarea { min-height: 160px; resize: vertical; line-height: 1.45; }
+  button { font: inherit; cursor: pointer; }
+  .btn { display: block; width: 100%; border: 0; border-radius: 12px; padding: 15px; font-size: 18px; font-weight: 600; color: #fff; background: var(--navy); }
+  .btn.go { background: var(--green); } .btn.stop { background: var(--red); }
+  .btn.ghost { background: var(--chip); color: var(--ink); font-weight: 500; font-size: 16px; padding: 12px; }
+  .btn.link { background: none; color: var(--navy-2); font-weight: 500; font-size: 15px; padding: 8px; width: auto; display: inline-block; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .chip { border: 1px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 18px; padding: 8px 12px; font-size: 14px; }
+  .chip.on { background: var(--chip-on); border-color: var(--chip-on); color: #fff; }
+  .clock { font-size: 46px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; margin: 6px 0 2px; letter-spacing: .5px; }
+  .running-title { text-align: center; font-weight: 600; }
+  .running-sub { text-align: center; color: var(--muted); font-size: 14px; }
+  .toggle { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 15px; }
+  .switch { position: relative; width: 50px; height: 30px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .switch span { position: absolute; inset: 0; background: #c3cad3; border-radius: 15px; transition: .15s; }
+  .switch span:before { content: ""; position: absolute; width: 26px; height: 26px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: .15s; }
+  .switch input:checked + span { background: var(--green); }
+  .switch input:checked + span:before { transform: translateX(20px); }
+  .sum { display: flex; justify-content: space-between; align-items: baseline; margin: 4px 2px 8px; }
+  .sum b { font-size: 18px; }
+  .entry { display: flex; gap: 10px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
+  .entry:first-child { border-top: 0; }
+  .entry .main { flex: 1; min-width: 0; }
+  .entry .p { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry .p span { color: var(--navy-2); }
+  .entry .s { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry .d { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .entry .again { border: 0; background: var(--chip); color: var(--green); width: 38px; height: 38px; border-radius: 50%; font-size: 15px; flex: none; }
+  .day-h { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 14px 4px 6px; display: flex; justify-content: space-between; }
+  .plist .pr { display: flex; gap: 10px; align-items: center; padding: 12px 2px; border-top: 1px solid var(--line); }
+  .plist .pr:first-child { border-top: 0; }
+  .pr .id { font-weight: 600; color: var(--navy-2); min-width: 64px; }
+  .pr .nm { flex: 1; min-width: 0; }
+  .pr .nm div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pr .chev { color: var(--muted); font-size: 20px; }
+  .badge { font-size: 12px; background: var(--chip); border-radius: 10px; padding: 2px 8px; color: var(--muted); white-space: nowrap; }
+  .ai { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .ai:first-child { border-top: 0; }
+  .ai input[type=checkbox] { width: 24px; height: 24px; flex: none; -webkit-appearance: checkbox; appearance: auto; accent-color: var(--green); }
+  .ai .tx { flex: 1; min-width: 0; }
+  .ai.done .tx { text-decoration: line-through; color: var(--muted); }
+  .ai .due { font-size: 12px; color: var(--muted); }
+  .ai .due.late { color: var(--red); font-weight: 600; }
+  .ai .x { border: 0; background: none; color: var(--muted); font-size: 18px; padding: 4px 8px; }
+  nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  nav.tabs button { flex: 1; border: 0; background: none; padding: 9px 0 8px; color: var(--muted); font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  nav.tabs button .ic { font-size: 22px; line-height: 1; }
+  nav.tabs button.on { color: var(--navy-2); font-weight: 600; }
+  .sheet-bg { position: fixed; inset: 0; background: rgba(10,18,30,.45); z-index: 40; display: none; align-items: flex-end; }
+  .sheet-bg.show { display: flex; }
+  .sheet { background: var(--card); width: 100%; max-width: 640px; margin: 0 auto; border-radius: 18px 18px 0 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); max-height: 92vh; overflow: auto; }
+  .sheet h2 { margin: 0 0 6px; font-size: 18px; display: flex; align-items: center; }
+  .sheet h2 button { margin-left: auto; }
+  #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom)); background: #1d2530; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; display: none; z-index: 60; max-width: 92%; text-align: center; }
+  #toast.err { background: var(--red); }
+  .pp-h { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+  .pp-h .back { border: 0; background: none; color: var(--navy-2); font-size: 16px; padding: 4px 0; }
+  .pp-title { font-size: 20px; font-weight: 600; margin: 2px 0; }
+  .saved { font-size: 12px; color: var(--green); margin-left: 6px; }
+  .setup { max-width: 480px; margin: 30px auto; }
+  .setup h2 { color: var(--navy-2); }
+  .setup ol { padding-left: 20px; line-height: 1.6; }
+  code { background: var(--chip); padding: 1px 5px; border-radius: 4px; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Fultz Ops</h1>
+  <div class="sync"><span class="dot" id="dot"></span><span id="syncTxt"></span></div>
+  <button onclick="openSettings()" aria-label="Settings">⚙︎</button>
+</header>
+
+<main id="app"></main>
+
+<nav class="tabs" id="tabs" style="display:none">
+  <button id="tab-timer" class="on" onclick="go('timer')"><span class="ic">⏱</span>Timer</button>
+  <button id="tab-projects" onclick="go('projects')"><span class="ic">📋</span>Projects</button>
+</nav>
+
+<div class="sheet-bg" id="sheetBg" onclick="if(event.target===this) closeSheet()"><div class="sheet" id="sheet"></div></div>
+<div id="toast"></div>
+
+<script>
+/**
+ * Fultz Ops - time tracking + project management for Fultz Industries
+ * Google Apps Script web app. All data lives in the Google Sheet this script
+ * is attached to. Each tab is a plain table with stable IDs.
+ *
+ * Files in this project: Code.gs (this), Seed.gs (starting data), Index.html, appsscript.json
+ * First-time setup: see SETUP.md (paste files, run setup() once, deploy).
+ */
+
+const APP_NAME = 'Fultz Ops';
+
+const TAB = {
+  CLIENTS: 'Clients',
+  PROJECTS: 'Projects',
+  TASKS: 'Tasks',
+  TEMPLATES: 'Task Templates',
+  ITEMS: 'Action Items',
+  ENTRIES: 'Entries',
+  SETTINGS: 'Settings',
+  WORKFLOW: 'Workflow',
+  LOG: 'Log'
+};
+
+// New columns are only ever added at the END so older sheets keep working.
+const COLS = {};
+COLS[TAB.CLIENTS] = ['Client ID', 'Name', 'Contact', 'Email', 'Default Rate', 'Active', 'Notes', 'Client Status'];
+COLS[TAB.PROJECTS] = ['Project ID', 'Client ID', 'Name', 'Status', 'Active', 'Rate', 'Est Hrs', 'Deliverable', 'Notes', 'Created',
+  'Priority', 'Billing Model', 'Quoted Amount', 'Invoiced', 'Start', 'End', 'Prior Hours', 'Folder ID', 'Status Changed', 'Notion URL'];
+COLS[TAB.TASKS] = ['Project ID', 'Task', 'Sort', 'Active'];
+COLS[TAB.TEMPLATES] = ['Template', 'Task', 'Sort'];
+COLS[TAB.ITEMS] = ['Item ID', 'Project ID', 'Text', 'Done', 'Due', 'Sort', 'Created', 'Completed'];
+COLS[TAB.ENTRIES] = ['Entry ID', 'Date', 'Week', 'Client ID', 'Project ID', 'Task', 'Description',
+  'Start', 'End', 'Hours', 'Billable', 'Rate', 'Start TS', 'End TS', 'Created', 'Updated'];
+COLS[TAB.SETTINGS] = ['Setting', 'Value', 'Notes'];
+COLS[TAB.WORKFLOW] = ['Order', 'Status', 'Column', 'Next Button', 'Closes Project', 'Column Hidden'];
+COLS[TAB.LOG] = ['When', 'Who', 'Action', 'Details'];
+
+// Columns stored as plain text so Sheets never turns "006-004" or "08:30" into a date.
+const TEXT_COLS = {};
+TEXT_COLS[TAB.CLIENTS] = ['Client ID'];
+TEXT_COLS[TAB.PROJECTS] = ['Project ID', 'Client ID', 'Start', 'End', 'Folder ID'];
+TEXT_COLS[TAB.TASKS] = ['Project ID'];
+TEXT_COLS[TAB.ITEMS] = ['Item ID', 'Project ID', 'Due'];
+TEXT_COLS[TAB.ENTRIES] = ['Entry ID', 'Date', 'Week', 'Client ID', 'Project ID', 'Start', 'End', 'Start TS', 'End TS'];
+
+// Default workflow. Your own version lives on the Workflow tab and is edited from Settings in the app.
+// The order a project normally moves through. "Next step" on the board follows this list.
+const FLOW = ['Not started', 'Preplanning', 'Contract Sent', 'Contract Signed', 'Deposit Invoice Sent',
+  "Deposit Recv'd", 'In progress', 'Deliverables Sent', 'Final Invoice Sent', "Payment Recv'd", 'Done'];
+const PROJECT_STATUSES = FLOW.concat(['Defunct']);
+
+// Board columns. Each groups a few statuses so the board stays readable.
+const STAGES = [
+  { name: 'Lead', statuses: ['Not started', 'Preplanning'] },
+  { name: 'Contract', statuses: ['Contract Sent', 'Contract Signed'] },
+  { name: 'Deposit', statuses: ['Deposit Invoice Sent', "Deposit Recv'd"] },
+  { name: 'In Progress', statuses: ['In progress'] },
+  { name: 'Delivered / Billing', statuses: ['Deliverables Sent', 'Final Invoice Sent'] },
+  { name: 'Closed', statuses: ["Payment Recv'd", 'Done'] }
+];
+const INACTIVE_STATUSES = ["Payment Recv'd", 'Done', 'Defunct'];
+
+function defaultWorkflowRows_() {
+  const rows = [];
+  STAGES.forEach(function (st) {
+    st.statuses.forEach(function (s) {
+      rows.push({ status: s, column: st.name, next: true, closes: INACTIVE_STATUSES.indexOf(s) >= 0, hidden: false });
+    });
+  });
+  rows.push({ status: 'Defunct', column: 'Defunct', next: false, closes: true, hidden: true });
+  return rows;
+}
+
+/** The live workflow: from the Workflow tab, or the defaults if the tab is empty or missing. */
+function workflow_() {
+  let rows = [];
+  const sh = book_().getSheetByName(TAB.WORKFLOW);
+  if (sh && sh.getLastRow() > 1) {
+    rows = readTable_(TAB.WORKFLOW)
+      .filter(function (r) { return String(r.Status || '').trim(); })
+      .sort(function (a, b) { return (Number(a.Order) || 0) - (Number(b.Order) || 0); })
+      .map(function (r) {
+        return { status: String(r.Status).trim(), column: String(r.Column || '').trim() || 'Other',
+          next: r['Next Button'] === '' ? true : bool_(r['Next Button']), closes: bool_(r['Closes Project']), hidden: bool_(r['Column Hidden']) };
+      });
+  }
+  if (!rows.length) rows = defaultWorkflowRows_();
+  const stages = [];
+  rows.forEach(function (r) {
+    let st = stages.filter(function (x) { return x.name === r.column; })[0];
+    if (!st) { st = { name: r.column, statuses: [], hidden: true, closes: true }; stages.push(st); }
+    st.statuses.push(r.status);
+    if (!r.hidden) st.hidden = false;
+    if (!r.closes) st.closes = false;
+  });
+  // Column order follows the first appearance of each column; statuses keep their order within it.
+  const ordered = [];
+  stages.forEach(function (st) { st.statuses.forEach(function (s) { ordered.push(s); }); });
+  const byName = {};
+  rows.forEach(function (r) { byName[r.status] = r; });
+  return {
+    rows: ordered.map(function (s) { return byName[s]; }),
+    statuses: ordered,
+    flow: ordered.filter(function (s) { return byName[s].next; }),
+    stages: stages,
+    closed: ordered.filter(function (s) { return byName[s].closes; })
+  };
+}
+const CLIENT_STATUSES = ['Hourly Contract', 'Block Contract', 'Invoice Per Job', 'No Contract', 'Dormant'];
+const BILLING_MODELS = ['Hourly', 'Per Job', 'Retainer'];
+const PRIORITIES = ['High', 'Medium', 'Low'];
+
+const DEFAULT_SETTINGS = [
+  ['Company Name', 'Fultz Industries, LLC', 'Printed at the top of every report'],
+  ['Company Contact', '', 'Optional second line on reports (email, phone, website)'],
+  ['Report Title', 'Time Report', 'Heading printed on reports'],
+  ['Report Suffix', 'clockify', 'Last part of the file name: 2026w46_006-004_<suffix>.pdf'],
+  ['Show Amounts On Reports', 'No', 'Yes = print rate and dollar totals on reports by default'],
+  ['Rounding Minutes', 0, 'Round each entry on reports to the nearest N minutes (0 = exact time)'],
+  ['Reports Folder ID', '', 'Fallback Drive folder for PDFs. Leave blank and the app creates "Fultz Time Reports".'],
+  ['Save To Project Folder', 'Yes', 'Yes = save each PDF in the project\'s Drive folder when it can be found'],
+  ['Client Projects Folder ID', '', 'Drive folder holding the "NNN - Client" folders. Needed for project files and folders.'],
+  ['Default Template', 'General', 'Task template used for new projects when none is picked']
+];
+
+/* ------------------------------------------------------------------ */
+/* Web app entry                                                      */
+/* ------------------------------------------------------------------ */
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle(APP_NAME)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/* ------------------------------------------------------------------ */
+/* One-time setup (run from the Apps Script editor; safe to re-run)    */
+/* ------------------------------------------------------------------ */
+
+function setup() {
+  const book = SpreadsheetApp.getActive();
+  if (!book) {
+    throw new Error('Open this script from the Google Sheet (Extensions > Apps Script), then run setup again.');
+  }
+  PropertiesService.getScriptProperties().setProperty('BOOK_ID', book.getId());
+  book.setSpreadsheetTimeZone(Session.getScriptTimeZone());
+
+  Object.keys(COLS).forEach(function (name) { ensureTab_(book, name); });
+
+  const settings = book.getSheetByName(TAB.SETTINGS);
+  if (settings.getLastRow() < 2) {
+    settings.getRange(2, 1, DEFAULT_SETTINGS.length, 3).setValues(DEFAULT_SETTINGS);
+  } else {
+    const have = settings.getRange(2, 1, settings.getLastRow() - 1, 1).getValues().map(function (r) { return String(r[0]); });
+    DEFAULT_SETTINGS.forEach(function (row) { if (have.indexOf(row[0]) < 0) settings.appendRow(row); });
+  }
+
+  const tpl = book.getSheetByName(TAB.TEMPLATES);
+  if (tpl.getLastRow() < 2) {
+    const rows = [];
+    Object.keys(SEED_TEMPLATES).forEach(function (name) {
+      SEED_TEMPLATES[name].forEach(function (task, i) { rows.push([name, task, i + 1]); });
+    });
+    tpl.getRange(2, 1, rows.length, 3).setValues(rows);
+  }
+
+  const clients = book.getSheetByName(TAB.CLIENTS);
+  if (clients.getLastRow() < 2) {
+    const rows = SEED_CLIENTS.map(function (c) { return [c[0], c[1], c[2], '', c[3], c[4], '', c[5]]; });
+    clients.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  } else {
+    fillBlanks_(TAB.CLIENTS, 'Client ID', function (id) {
+      const c = SEED_CLIENTS.filter(function (x) { return x[0] === id; })[0];
+      return c ? { 'Client Status': c[5] } : null;
+    });
+  }
+
+  const projects = book.getSheetByName(TAB.PROJECTS);
+  if (projects.getLastRow() < 2) {
+    const now = new Date();
+    const rows = SEED_PROJECTS.map(function (p) {
+      const x = SEED_EXTRA[p[0]] || {};
+      return [p[0], p[0].slice(0, 3), p[1], p[2], INACTIVE_STATUSES.indexOf(p[2]) < 0,
+        p[3] || '', p[4] || '', p[5] || '', x.notes || '', now,
+        x.priority || '', x.billing || (p[0] === '008-001' ? '' : 'Hourly'), x.quoted || '',
+        SEED_INVOICED.indexOf(p[0]) >= 0, x.start || '', x.end || x.start || '', x.prior || '', '', '',
+        SEED_NOTION[p[0]] ? 'https://www.notion.so/' + SEED_NOTION[p[0]] : ''];
+    });
+    projects.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+
+    const tasks = [];
+    SEED_PROJECTS.forEach(function (p) {
+      if (INACTIVE_STATUSES.indexOf(p[2]) >= 0) return;
+      templateTasks_(templateForDeliverable_(p[5])).forEach(function (t, i) { tasks.push([p[0], t, i + 1, true]); });
+    });
+    if (tasks.length) book.getSheetByName(TAB.TASKS).getRange(2, 1, tasks.length, 4).setValues(tasks);
+  } else {
+    // Upgrading from the time-tracker-only version: fill new columns from the Notion copy.
+    fillBlanks_(TAB.PROJECTS, 'Project ID', function (id) {
+      const x = SEED_EXTRA[id] || {};
+      const seed = SEED_PROJECTS.filter(function (p) { return p[0] === id; })[0];
+      if (!seed) return null;
+      return {
+        'Notes': x.notes || '', 'Priority': x.priority || '', 'Billing Model': x.billing || (id === '008-001' ? '' : 'Hourly'),
+        'Quoted Amount': x.quoted || '', 'Invoiced': SEED_INVOICED.indexOf(id) >= 0 ? true : '',
+        'Start': x.start || '', 'End': x.end || x.start || '', 'Prior Hours': x.prior || '',
+        'Notion URL': SEED_NOTION[id] ? 'https://www.notion.so/' + SEED_NOTION[id] : ''
+      };
+    });
+  }
+
+  const wfSheet = book.getSheetByName(TAB.WORKFLOW);
+  if (wfSheet.getLastRow() < 2) writeWorkflow_(defaultWorkflowRows_());
+
+  const items = book.getSheetByName(TAB.ITEMS);
+  if (items.getLastRow() < 2) {
+    const rows = [];
+    const now = new Date();
+    Object.keys(SEED_EXTRA).forEach(function (pid) {
+      (SEED_EXTRA[pid].items || []).forEach(function (t, i) { rows.push([newId_('A'), pid, t, false, '', i + 1, now, '']); });
+    });
+    if (rows.length) items.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  }
+
+  log_('Setup', 'Tabs checked and seeded');
+  return 'Setup complete. Deploy > New deployment > Web app to get your link.';
+}
+
+function ensureTab_(book, name) {
+  let sh = book.getSheetByName(name);
+  if (!sh) sh = book.insertSheet(name);
+  const cols = COLS[name];
+  sh.getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight('bold');
+  sh.setFrozenRows(1);
+  (TEXT_COLS[name] || []).forEach(function (col) {
+    const idx = cols.indexOf(col) + 1;
+    sh.getRange(1, idx, sh.getMaxRows(), 1).setNumberFormat('@');
+  });
+  return sh;
+}
+
+/** For each existing row, set any blank cells to the values fn(id) returns. */
+function fillBlanks_(name, keyCol, fn) {
+  const sh = sheet_(name);
+  const cols = COLS[name];
+  readTable_(name).forEach(function (r) {
+    const vals = fn(text_(r[keyCol]));
+    if (!vals) return;
+    Object.keys(vals).forEach(function (col) {
+      if (vals[col] === '' || vals[col] === undefined) return;
+      if (r[col] !== '' && r[col] !== null && r[col] !== undefined) return;
+      sh.getRange(r._row, cols.indexOf(col) + 1).setValue(vals[col]);
+    });
+  });
+}
+
+function templateForDeliverable_(deliverable) {
+  if (deliverable === 'Drawing Package') return 'Drawing Package';
+  if (deliverable === 'Laser Files') return 'Laser Files';
+  if (deliverable === 'CAD') return 'CAD Model';
+  return 'General';
+}
+
+function templateTasks_(name) {
+  if (SEED_TEMPLATES[name]) return SEED_TEMPLATES[name].slice();
+  return SEED_TEMPLATES.General.slice();
+}
+
+/* ------------------------------------------------------------------ */
+/* API: startup data                                                  */
+/* ------------------------------------------------------------------ */
+
+function getBootstrap() {
+  const settings = settings_();
+  const entries = readTable_(TAB.ENTRIES).map(entryFromRow_);
+  const logged = {}, billed = {};
+  entries.forEach(function (e) {
+    if (e.startTS && !e.endTS) return;
+    logged[e.projectId] = (logged[e.projectId] || 0) + e.hours;
+    if (e.billable) billed[e.projectId] = (billed[e.projectId] || 0) + e.hours * (Number(e.rate) || 0);
+  });
+  const items = items_();
+  const clients = clients_();
+  const wf = workflow_();
+  const statusUse = {};
+  const projects = projects_().map(function (p) {
+    statusUse[p.status] = (statusUse[p.status] || 0) + 1;
+    p.tracked = round2_(logged[p.id] || 0);
+    p.logged = round2_(p.tracked + (Number(p.priorHours) || 0));
+    const rate = rateFor_(p, clients);
+    p.billedEst = round2_((billed[p.id] || 0) + (Number(p.priorHours) || 0) * (Number(rate) || 0));
+    p.effectiveRate = rate;
+    const mine = items.filter(function (i) { return i.projectId === p.id; });
+    p.itemsOpen = mine.filter(function (i) { return !i.done; }).length;
+    p.itemsTotal = mine.length;
+    p.dueItems = mine.filter(function (i) { return i.due; }).map(function (i) { return { text: i.text, due: i.due, done: i.done }; });
+    return p;
+  });
+  const today = todayStr_();
+  return {
+    appName: APP_NAME,
+    user: me_(),
+    today: today,
+    thisWeek: weekKeyOf_(today),
+    clients: clients,
+    projects: projects,
+    templates: templates_(),
+    statuses: wf.statuses,
+    flow: wf.flow,
+    stages: wf.stages,
+    closedStatuses: wf.closed,
+    workflow: wf.rows,
+    defaultWorkflow: defaultWorkflowRows_(),
+    statusUse: statusUse,
+    settingsAll: editableSettings_(settings),
+    clientStatuses: CLIENT_STATUSES,
+    billingModels: BILLING_MODELS,
+    priorities: PRIORITIES,
+    running: running_(entries),
+    hasProjectsFolder: !!String(settings['Client Projects Folder ID'] || '').trim(),
+    settings: {
+      showAmounts: yes_(settings['Show Amounts On Reports']),
+      suffix: String(settings['Report Suffix'] || 'clockify'),
+      rounding: Number(settings['Rounding Minutes']) || 0,
+      defaultTemplate: String(settings['Default Template'] || 'General')
+    }
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* API: time entries                                                  */
+/* ------------------------------------------------------------------ */
+
+function getWeek(weekKey) {
+  const wk = weekInfo_(weekKey || weekKeyOf_(todayStr_()));
+  const all = readTable_(TAB.ENTRIES).map(entryFromRow_);
+  const entries = all.filter(function (e) { return e.week === wk.key; }).sort(entrySort_);
+  return { week: wk, entries: entries, running: running_(all) };
+}
+
+function startTimer(input) {
+  return withLock_(function () {
+    const stopped = stopRunning_();
+    const p = project_(input.projectId);
+    const now = new Date();
+    const date = fmt_(now, 'yyyy-MM-dd');
+    const e = {
+      id: newId_('E'), date: date, week: weekKeyOf_(date), clientId: p.clientId, projectId: p.id,
+      task: String(input.task || ''), description: String(input.description || '').trim(),
+      start: fmt_(now, 'HH:mm'), end: '', hours: 0, billable: input.billable !== false,
+      rate: rateFor_(p), startTS: now.toISOString(), endTS: '', created: now, updated: now
+    };
+    appendRow_(TAB.ENTRIES, entryToRow_(e));
+    log_('Start timer', e.projectId + ' ' + e.task);
+    return { running: e, stopped: stopped };
+  });
+}
+
+function stopTimer() {
+  return withLock_(function () { return { stopped: stopRunning_() }; });
+}
+
+function discardTimer() {
+  return withLock_(function () {
+    const found = findRunning_();
+    if (found) {
+      sheet_(TAB.ENTRIES).deleteRow(found.row);
+      log_('Discard timer', found.entry.projectId);
+    }
+    return true;
+  });
+}
+
+/** Change project, task, description or billable on the running timer without stopping it. */
+function updateRunning(input) {
+  return withLock_(function () {
+    const found = findRunning_();
+    if (!found) return null;
+    const e = found.entry;
+    if (input.projectId) {
+      const p = project_(input.projectId);
+      e.projectId = p.id; e.clientId = p.clientId; e.rate = rateFor_(p);
+    }
+    if (input.task !== undefined) e.task = String(input.task || '');
+    if (input.description !== undefined) e.description = String(input.description || '').trim();
+    if (input.billable !== undefined) e.billable = !!input.billable;
+    e.updated = new Date();
+    writeRow_(TAB.ENTRIES, found.row, entryToRow_(e));
+    return e;
+  });
+}
+
+/** Create or update a finished entry. Give date + start + end, or date + hours. */
+function saveEntry(input) {
+  return withLock_(function () {
+    const p = project_(input.projectId);
+    const date = String(input.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Pick a date.');
+    const start = cleanTime_(input.start);
+    const end = cleanTime_(input.end);
+    let hours, startTS = '', endTS = '';
+    if (start && end) {
+      let mins = toMin_(end) - toMin_(start);
+      if (mins < 0) mins += 1440; // ran past midnight
+      if (mins === 0) throw new Error('Start and end are the same time.');
+      hours = mins / 60;
+      const s = Utilities.parseDate(date + ' ' + start, tz_(), 'yyyy-MM-dd HH:mm');
+      startTS = s.toISOString();
+      endTS = new Date(s.getTime() + mins * 60000).toISOString();
+    } else {
+      hours = parseDuration_(input.hours);
+      if (!(hours > 0)) throw new Error('Enter a start and end time, or a duration like 1:30 or 1.5.');
+    }
+    const now = new Date();
+    let e, row = 0;
+    if (input.id) {
+      const found = findEntry_(input.id);
+      if (!found) throw new Error('That entry no longer exists. Refresh and try again.');
+      row = found.row;
+      e = found.entry;
+      if (!e.endTS && e.startTS) throw new Error('Stop the timer before editing this entry.');
+    } else {
+      e = { id: newId_('E'), created: now };
+    }
+    const projectChanged = e.projectId !== p.id;
+    e.date = date; e.week = weekKeyOf_(date); e.clientId = p.clientId; e.projectId = p.id;
+    e.task = String(input.task || ''); e.description = String(input.description || '').trim();
+    e.start = start && end ? start : ''; e.end = start && end ? end : '';
+    e.hours = round4_(hours); e.billable = input.billable !== false;
+    if (!input.id || projectChanged || e.rate === '' || e.rate === undefined) e.rate = rateFor_(p);
+    e.startTS = startTS; e.endTS = endTS; e.updated = now;
+    if (row) writeRow_(TAB.ENTRIES, row, entryToRow_(e));
+    else appendRow_(TAB.ENTRIES, entryToRow_(e));
+    log_(input.id ? 'Edit entry' : 'Add entry', e.id + ' ' + e.projectId + ' ' + e.hours + 'h');
+    return e;
+  });
+}
+
+function deleteEntry(id) {
+  return withLock_(function () {
+    const found = findEntry_(id);
+    if (!found) return false;
+    sheet_(TAB.ENTRIES).deleteRow(found.row);
+    log_('Delete entry', id + ' ' + found.entry.projectId + ' ' + found.entry.hours + 'h');
+    return true;
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* API: clients and projects                                          */
+/* ------------------------------------------------------------------ */
+
+function saveClient(input) {
+  return withLock_(function () {
+    const id = String(input.id || '').trim();
+    if (!/^\d{3}$/.test(id)) throw new Error('Client ID must be three digits, like 018.');
+    const name = String(input.name || '').trim();
+    if (!name) throw new Error('Enter a client name.');
+    const rowNum = findRowBy_(TAB.CLIENTS, 'Client ID', id);
+    if (input.isNew && rowNum) throw new Error('Client ' + id + ' already exists.');
+    const row = [id, name, String(input.contact || '').trim(), String(input.email || '').trim(),
+      numOrBlank_(input.rate), input.active !== false, String(input.notes || ''), String(input.clientStatus || '')];
+    if (rowNum) writeRow_(TAB.CLIENTS, rowNum, row);
+    else appendRow_(TAB.CLIENTS, row);
+    log_(rowNum ? 'Edit client' : 'Add client', id + ' ' + name);
+    return clients_().filter(function (c) { return c.id === id; })[0];
+  });
+}
+
+/**
+ * Create a project, or edit one. Only the fields you send are changed.
+ * input.tasks (array of names), when sent, replaces the project's task list.
+ */
+function saveProject(input) {
+  return withLock_(function () {
+    const id = String(input.id || '').trim();
+    if (!/^\d{3}-\d{3}$/.test(id)) throw new Error('Project ID must look like 006-004.');
+    const clientId = id.slice(0, 3);
+    if (!clients_().some(function (c) { return c.id === clientId; })) throw new Error('No client ' + clientId + ' yet. Add the client first.');
+    const rowNum = findRowBy_(TAB.PROJECTS, 'Project ID', id);
+    if (input.isNew && rowNum) throw new Error('Project ' + id + ' already exists.');
+    let p;
+    if (rowNum) {
+      p = project_(id);
+    } else {
+      p = { id: id, clientId: clientId, name: '', status: 'Not started', active: true, rate: '', estHrs: '', deliverable: '',
+        notes: '', created: new Date().toISOString(), priority: '', billingModel: 'Hourly', quoted: '', invoiced: false,
+        start: '', end: '', priorHours: '', folderId: '', statusChanged: '', notionUrl: '' };
+    }
+    applyProjectPatch_(p, input);
+    if (!String(p.name).trim()) throw new Error('Enter a project name.');
+    const row = projectToRow_(p);
+    if (rowNum) writeRow_(TAB.PROJECTS, rowNum, row);
+    else appendRow_(TAB.PROJECTS, row);
+
+    if (input.tasks) replaceTasks_(id, input.tasks);
+    log_(rowNum ? 'Edit project' : 'Add project', id + ' ' + p.name);
+    return project_(id);
+  });
+}
+
+function applyProjectPatch_(p, input) {
+  const str = function (k, prop) { if (input[k] !== undefined) p[prop || k] = String(input[k] === null ? '' : input[k]).trim(); };
+  str('name'); str('deliverable'); str('priority'); str('billingModel'); str('notionUrl');
+  if (input.notes !== undefined) p.notes = String(input.notes || '');
+  if (input.rate !== undefined) p.rate = numOrBlank_(input.rate);
+  if (input.estHrs !== undefined) p.estHrs = numOrBlank_(input.estHrs);
+  if (input.quoted !== undefined) p.quoted = numOrBlank_(input.quoted);
+  if (input.priorHours !== undefined) p.priorHours = numOrBlank_(input.priorHours);
+  if (input.invoiced !== undefined) p.invoiced = !!input.invoiced;
+  if (input.active !== undefined) p.active = !!input.active;
+  if (input.start !== undefined) p.start = cleanDate_(input.start);
+  if (input.end !== undefined) p.end = cleanDate_(input.end);
+  if (p.start && p.end && p.end < p.start) { const t = p.start; p.start = p.end; p.end = t; }
+  if (p.start && !p.end) p.end = p.start;
+  if (!p.start) p.end = '';
+  if (input.status !== undefined && input.status !== p.status) {
+    const wf = workflow_();
+    if (wf.statuses.indexOf(input.status) < 0) throw new Error('Unknown status: ' + input.status);
+    p.status = input.status;
+    p.statusChanged = todayStr_();
+    // Moving into or out of a closing status turns timer visibility off/on unless you set it yourself.
+    if (input.active === undefined) p.active = wf.closed.indexOf(p.status) < 0;
+  }
+}
+
+/** Small edits from the board, schedule and project page. */
+function updateProject(id, patch) {
+  return withLock_(function () {
+    const rowNum = findRowBy_(TAB.PROJECTS, 'Project ID', String(id));
+    if (!rowNum) throw new Error('Project ' + id + ' not found.');
+    const p = project_(id);
+    const before = p.status;
+    applyProjectPatch_(p, patch || {});
+    writeRow_(TAB.PROJECTS, rowNum, projectToRow_(p));
+    if (patch && patch.status !== undefined && patch.status !== before) log_('Status', id + ': ' + before + ' -> ' + p.status);
+    return project_(id);
+  });
+}
+
+function replaceTasks_(id, list) {
+  const tasks = (list || []).map(function (t) { return String(t || '').trim(); })
+    .filter(function (t, i, arr) { return t && arr.indexOf(t) === i; });
+  const sh = sheet_(TAB.TASKS);
+  const data = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues() : [];
+  for (let i = data.length - 1; i >= 0; i--) {
+    if (text_(data[i][0]) === id) sh.deleteRow(i + 2);
+  }
+  if (tasks.length) {
+    const start = sh.getLastRow() + 1;
+    textFormat_(TAB.TASKS, start, tasks.length);
+    sh.getRange(start, 1, tasks.length, 4).setValues(tasks.map(function (t, i) { return [id, t, i + 1, true]; }));
+  }
+}
+
+/** Everything the project page needs in one call. */
+function getProjectDetail(id) {
+  const p = project_(id);
+  const clients = clients_();
+  const client = clients.filter(function (c) { return c.id === p.clientId; })[0] || null;
+  const entries = readTable_(TAB.ENTRIES).map(entryFromRow_)
+    .filter(function (e) { return e.projectId === p.id && !(e.startTS && !e.endTS); })
+    .sort(entrySort_).reverse();
+  const byTask = {};
+  entries.forEach(function (e) { const k = e.task || '(no task)'; byTask[k] = (byTask[k] || 0) + e.hours; });
+  const byWeek = {};
+  entries.forEach(function (e) { byWeek[e.week] = (byWeek[e.week] || 0) + e.hours; });
+  p.tracked = round2_(entries.reduce(function (s, e) { return s + e.hours; }, 0));
+  p.logged = round2_(p.tracked + (Number(p.priorHours) || 0));
+  p.effectiveRate = rateFor_(p, clients);
+  return clean_({
+    project: p,
+    client: client,
+    items: items_().filter(function (i) { return i.projectId === p.id; }),
+    entries: entries.slice(0, 50),
+    entryCount: entries.length,
+    byTask: Object.keys(byTask).map(function (k) { return { task: k, hours: round2_(byTask[k]) }; })
+      .sort(function (a, b) { return b.hours - a.hours; }),
+    byWeek: Object.keys(byWeek).sort().reverse().map(function (k) { return { week: k, hours: round2_(byWeek[k]) }; })
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* API: action items                                                  */
+/* ------------------------------------------------------------------ */
+
+function addItem(projectId, text, due) {
+  return withLock_(function () {
+    project_(projectId);
+    const t = String(text || '').trim();
+    if (!t) throw new Error('Type the action item first.');
+    const mine = items_().filter(function (i) { return i.projectId === projectId; });
+    const sort = mine.reduce(function (m, i) { return Math.max(m, i.sort); }, 0) + 1;
+    const row = [newId_('A'), projectId, t, false, cleanDate_(due), sort, new Date(), ''];
+    appendRow_(TAB.ITEMS, row);
+    return items_().filter(function (i) { return i.projectId === projectId; });
+  });
+}
+
+function updateItem(id, patch) {
+  return withLock_(function () {
+    const rowNum = findRowBy_(TAB.ITEMS, 'Item ID', String(id));
+    if (!rowNum) throw new Error('That action item no longer exists.');
+    const it = items_().filter(function (i) { return i.id === id; })[0];
+    if (patch.text !== undefined) { const t = String(patch.text).trim(); if (t) it.text = t; }
+    if (patch.due !== undefined) it.due = cleanDate_(patch.due);
+    if (patch.done !== undefined && !!patch.done !== it.done) {
+      it.done = !!patch.done;
+      it.completed = it.done ? todayStr_() : '';
+    }
+    writeRow_(TAB.ITEMS, rowNum, [it.id, it.projectId, it.text, it.done, it.due, it.sort, it.created || new Date(), it.completed]);
+    return items_().filter(function (i) { return i.projectId === it.projectId; });
+  });
+}
+
+function deleteItem(id) {
+  return withLock_(function () {
+    const rowNum = findRowBy_(TAB.ITEMS, 'Item ID', String(id));
+    if (!rowNum) return [];
+    const it = items_().filter(function (i) { return i.id === id; })[0];
+    sheet_(TAB.ITEMS).deleteRow(rowNum);
+    return items_().filter(function (i) { return i.projectId === it.projectId; });
+  });
+}
+
+/** ids = the project's item IDs in the new order */
+function reorderItems(projectId, ids) {
+  return withLock_(function () {
+    const sh = sheet_(TAB.ITEMS);
+    const sortCol = COLS[TAB.ITEMS].indexOf('Sort') + 1;
+    readTable_(TAB.ITEMS).forEach(function (r) {
+      const idx = ids.indexOf(String(r['Item ID']));
+      if (idx >= 0) sh.getRange(r._row, sortCol).setValue(idx + 1);
+    });
+    return items_().filter(function (i) { return i.projectId === projectId; });
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* API: project files in Google Drive                                 */
+/* ------------------------------------------------------------------ */
+
+/** Lists the project's Drive folder. Does not create anything. */
+function getProjectFiles(id) {
+  const p = project_(id);
+  const folder = projectFolder_(p, false);
+  if (!folder) return { found: false, configured: !!projectsRoot_() };
+  const files = [];
+  const fi = folder.getFiles();
+  while (fi.hasNext() && files.length < 200) {
+    const f = fi.next();
+    files.push({ name: f.getName(), url: f.getUrl(), updated: f.getLastUpdated().toISOString(), size: f.getSize(), type: f.getMimeType() });
+  }
+  const folders = [];
+  const di = folder.getFolders();
+  while (di.hasNext() && folders.length < 50) {
+    const d = di.next();
+    folders.push({ name: d.getName(), url: d.getUrl() });
+  }
+  files.sort(function (a, b) { return a.updated < b.updated ? 1 : -1; });
+  folders.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+  return { found: true, configured: true, folderName: folder.getName(), folderUrl: folder.getUrl(), files: files, folders: folders };
+}
+
+/** Finds the project folder, creating "NNN - Client/NNN-NNN Name" if it doesn't exist. Returns its URL. */
+function ensureProjectFolder(id) {
+  return withLock_(function () {
+    const p = project_(id);
+    const folder = projectFolder_(p, true);
+    return { url: folder.getUrl(), name: folder.getName() };
+  });
+}
+
+/** Saves an uploaded file into the project's Drive folder. data = base64 without the data: prefix. */
+function uploadProjectFile(id, name, mimeType, data) {
+  const p = project_(id);
+  const folder = projectFolder_(p, true);
+  const blob = Utilities.newBlob(Utilities.base64Decode(data), mimeType || 'application/octet-stream', name);
+  const file = folder.createFile(blob);
+  log_('Upload', p.id + ' ' + name);
+  return { name: file.getName(), url: file.getUrl() };
+}
+
+function projectsRoot_() {
+  const id = String(settings_()['Client Projects Folder ID'] || '').trim();
+  if (!id) return null;
+  try { return DriveApp.getFolderById(id); } catch (e) { return null; }
+}
+
+function projectFolder_(p, create) {
+  if (p.folderId) {
+    try {
+      const f = DriveApp.getFolderById(p.folderId);
+      if (!f.isTrashed || !f.isTrashed()) return f;
+    } catch (e) { /* folder moved or deleted: look it up again */ }
+  }
+  const root = projectsRoot_();
+  if (!root) {
+    if (create) throw new Error('Set the Client Projects folder in ⚙ Settings first, so the app knows where client folders live.');
+    return null;
+  }
+  let clientFolder = firstFolderStartingWith_(root, [p.clientId + ' ', p.clientId + '-', p.clientId + '_', p.clientId]);
+  let folder = clientFolder ? firstFolderStartingWith_(clientFolder, [p.id, p.id.slice(4) + ' ', p.id.slice(4) + '-']) : null;
+  if (!folder && create) {
+    if (!clientFolder) {
+      const c = clients_().filter(function (x) { return x.id === p.clientId; })[0];
+      clientFolder = root.createFolder(p.clientId + ' - ' + (c ? c.name : 'Client'));
+    }
+    folder = clientFolder.createFolder(p.id + ' ' + p.name);
+  }
+  if (folder) {
+    const rowNum = findRowBy_(TAB.PROJECTS, 'Project ID', p.id);
+    if (rowNum) sheet_(TAB.PROJECTS).getRange(rowNum, COLS[TAB.PROJECTS].indexOf('Folder ID') + 1).setValue(folder.getId());
+  }
+  return folder;
+}
+
+/* ------------------------------------------------------------------ */
+/* API: workflow, templates and settings editors                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Replace the workflow. rows = [{status, orig, column, next, closes, hidden}] in display order.
+ * orig = the status's previous name (blank for new ones); renamed statuses are updated on every project.
+ */
+function saveWorkflow(rows) {
+  return withLock_(function () {
+    const clean = (rows || []).map(function (r) {
+      return { status: String(r.status || '').trim(), orig: String(r.orig || '').trim(), column: String(r.column || '').trim(),
+        next: !!r.next, closes: !!r.closes, hidden: !!r.hidden };
+    });
+    if (!clean.length) throw new Error('The workflow needs at least one status.');
+    const seen = {};
+    clean.forEach(function (r) {
+      if (!r.status) throw new Error('Every status needs a name.');
+      if (!r.column) throw new Error('Status "' + r.status + '" needs a board column.');
+      const k = r.status.toLowerCase();
+      if (seen[k]) throw new Error('"' + r.status + '" is listed twice.');
+      seen[k] = true;
+    });
+    if (!clean.some(function (r) { return !r.closes; })) throw new Error('At least one status must keep projects open.');
+
+    // Statuses that disappear must not be in use.
+    const old = workflow_().statuses;
+    const renamed = {};
+    clean.forEach(function (r) { if (r.orig && r.orig !== r.status) renamed[r.orig] = r.status; });
+    const kept = clean.map(function (r) { return r.orig || r.status; });
+    const projects = projects_();
+    old.forEach(function (s) {
+      if (kept.indexOf(s) >= 0) return;
+      const n = projects.filter(function (p) { return p.status === s; }).length;
+      if (n) throw new Error('"' + s + '" is still used by ' + n + ' project' + (n === 1 ? '' : 's') + '. Move them to another status first.');
+    });
+
+    // Save the new workflow first, then rename statuses on projects.
+    writeWorkflow_(clean);
+    const names = Object.keys(renamed);
+    if (names.length) {
+      const sh = sheet_(TAB.PROJECTS);
+      const col = COLS[TAB.PROJECTS].indexOf('Status') + 1;
+      readTable_(TAB.PROJECTS).forEach(function (r) {
+        const s = String(r.Status || '');
+        if (renamed[s]) sh.getRange(r._row, col).setValue(renamed[s]);
+      });
+      log_('Workflow', 'Renamed ' + names.map(function (n) { return n + ' -> ' + renamed[n]; }).join(', '));
+    }
+    log_('Workflow', 'Saved ' + clean.length + ' statuses');
+    return workflow_();
+  });
+}
+
+function writeWorkflow_(rows) {
+  const book = book_();
+  let sh = book.getSheetByName(TAB.WORKFLOW);
+  if (!sh) sh = ensureTab_(book, TAB.WORKFLOW);
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, COLS[TAB.WORKFLOW].length).clearContent();
+  const values = rows.map(function (r, i) { return [i + 1, r.status, r.column, r.next ? 'Yes' : 'No', r.closes ? 'Yes' : 'No', r.hidden ? 'Yes' : 'No']; });
+  sh.getRange(2, 1, values.length, values[0].length).setValues(values);
+}
+
+/** Replace all task templates. templates = {name: [task, ...]} in display order. */
+function saveTemplates(templates, defaultName) {
+  return withLock_(function () {
+    const names = Object.keys(templates || {}).map(function (n) { return String(n).trim(); });
+    const rows = [];
+    const seen = {};
+    Object.keys(templates || {}).forEach(function (name) {
+      const n = String(name).trim();
+      if (!n) throw new Error('Every template needs a name.');
+      if (seen[n.toLowerCase()]) throw new Error('Two templates are named "' + n + '".');
+      seen[n.toLowerCase()] = true;
+      const tasks = (templates[name] || []).map(function (t) { return String(t || '').trim(); })
+        .filter(function (t, i, a) { return t && a.indexOf(t) === i; });
+      if (!tasks.length) throw new Error('Template "' + n + '" has no tasks. Add one or delete the template.');
+      tasks.forEach(function (t, i) { rows.push([n, t, i + 1]); });
+    });
+    if (!rows.length) throw new Error('Keep at least one template.');
+    const sh = sheet_(TAB.TEMPLATES);
+    if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 3).clearContent();
+    sh.getRange(2, 1, rows.length, 3).setValues(rows);
+    const def = names.indexOf(String(defaultName || '').trim()) >= 0 ? String(defaultName).trim() : names[0];
+    setSetting_('Default Template', def);
+    log_('Templates', 'Saved ' + names.length + ' templates');
+    return { templates: templates_(), defaultTemplate: def };
+  });
+}
+
+const EDITABLE_SETTINGS = ['Company Name', 'Company Contact', 'Report Title', 'Report Suffix', 'Show Amounts On Reports',
+  'Rounding Minutes', 'Save To Project Folder', 'Client Projects Folder ID', 'Reports Folder ID'];
+
+function editableSettings_(settings) {
+  const out = {};
+  EDITABLE_SETTINGS.forEach(function (k) { out[k] = settings[k] === undefined ? '' : settings[k]; });
+  return out;
+}
+
+function saveSettings(values) {
+  return withLock_(function () {
+    Object.keys(values || {}).forEach(function (k) {
+      if (EDITABLE_SETTINGS.indexOf(k) < 0) return;
+      let v = values[k];
+      if (k === 'Rounding Minutes') { v = Math.max(0, Math.round(Number(v) || 0)); }
+      else if (k === 'Show Amounts On Reports' || k === 'Save To Project Folder') { v = v === true || yes_(v) ? 'Yes' : 'No'; }
+      else if (/Folder ID$/.test(k)) {
+        // Accept a pasted Drive link as well as a bare ID.
+        const m = /drive\.google\.com\/.*folders\/([A-Za-z0-9_-]+)/.exec(String(v || '')) || /drive\.google\.com\/.*[?&]id=([A-Za-z0-9_-]+)/.exec(String(v || ''));
+        v = m ? m[1] : String(v || '').trim();
+        if (v) { try { DriveApp.getFolderById(v).getName(); } catch (e) { throw new Error('Can\'t find that folder. Check the link, ID or path you pasted.'); } }
+      } else if (k === 'Report Suffix') {
+        v = String(v || '').trim().replace(/[^A-Za-z0-9_-]/g, '');
+        if (!v) throw new Error('Report suffix can only use letters, numbers, - and _.');
+      } else { v = String(v === null || v === undefined ? '' : v).trim(); }
+      setSetting_(k, v);
+    });
+    log_('Settings', Object.keys(values || {}).join(', '));
+    return editableSettings_(settings_());
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* PDF reports                                                        */
+/* ------------------------------------------------------------------ */
+
+function makeReport(input) {
+  const data = reportData_(input.week, input.projectId, input);
+  if (!data.entries.length) throw new Error('No time on ' + input.projectId + ' in ' + input.week + '.');
+  const html = reportHtml_(data);
+  const pdf = Utilities.newBlob(html, 'text/html', data.fileName.replace(/\.pdf$/, '.html'))
+    .getAs('application/pdf').setName(data.fileName);
+  const folder = reportFolder_(data.project);
+  const old = folder.getFilesByName(data.fileName);
+  while (old.hasNext()) old.next().setTrashed(true); // re-running replaces the old copy
+  const file = folder.createFile(pdf);
+  log_('Report', data.fileName + ' -> ' + folder.getName());
+  return { name: data.fileName, url: file.getUrl(), folder: folder.getName(), hours: data.totalHours };
+}
+
+function makeAllReports(input) {
+  const wk = weekInfo_(input.week);
+  const ids = {};
+  readTable_(TAB.ENTRIES).map(entryFromRow_).forEach(function (e) {
+    if (e.week === wk.key && (e.endTS || !e.startTS)) ids[e.projectId] = true;
+  });
+  return Object.keys(ids).sort().map(function (pid) {
+    try {
+      return makeReport({ week: wk.key, projectId: pid, showAmounts: input.showAmounts });
+    } catch (err) {
+      return { name: pid, error: err.message };
+    }
+  });
+}
+
+/** Returns the report HTML without saving anything (used for previewing). */
+function previewReport(input) {
+  return reportHtml_(reportData_(input.week, input.projectId, input));
+}
+
+function reportData_(weekKey, projectId, opts) {
+  const settings = settings_();
+  const wk = weekInfo_(weekKey);
+  const project = project_(projectId);
+  const client = clients_().filter(function (c) { return c.id === project.clientId; })[0] || { id: project.clientId, name: '' };
+  const rounding = Number(settings['Rounding Minutes']) || 0;
+  const showAmounts = opts && opts.showAmounts !== undefined ? !!opts.showAmounts : yes_(settings['Show Amounts On Reports']);
+  const entries = readTable_(TAB.ENTRIES).map(entryFromRow_)
+    .filter(function (e) { return e.week === wk.key && e.projectId === project.id && (e.endTS || !e.startTS); })
+    .sort(entrySort_)
+    .map(function (e) {
+      let h = Math.round(e.hours * 60) / 60; // whole minutes, so amounts match what the clock shows
+      if (rounding > 0) h = Math.round(h * 60 / rounding) * rounding / 60;
+      e.reportHours = round4_(h);
+      e.amount = e.billable ? round2_(h * (Number(e.rate) || 0)) : 0;
+      return e;
+    });
+  const byTask = {};
+  const order = [];
+  entries.forEach(function (e) {
+    const k = e.task || '(no task)';
+    if (!(k in byTask)) { byTask[k] = 0; order.push(k); }
+    byTask[k] += e.reportHours;
+  });
+  const totalHours = round4_(entries.reduce(function (s, e) { return s + e.reportHours; }, 0));
+  const billableHours = round4_(entries.reduce(function (s, e) { return s + (e.billable ? e.reportHours : 0); }, 0));
+  const totalAmount = round2_(entries.reduce(function (s, e) { return s + e.amount; }, 0));
+  const rates = entries.filter(function (e) { return e.billable; }).map(function (e) { return Number(e.rate) || 0; })
+    .filter(function (r, i, a) { return a.indexOf(r) === i; });
+  return {
+    company: String(settings['Company Name'] || ''),
+    contact: String(settings['Company Contact'] || ''),
+    title: String(settings['Report Title'] || 'Time Report'),
+    week: wk, project: project, client: client, entries: entries,
+    byTask: order.map(function (k) { return { task: k, hours: round4_(byTask[k]) }; }),
+    totalHours: totalHours, billableHours: billableHours, totalAmount: totalAmount,
+    rates: rates, showAmounts: showAmounts, rounding: rounding,
+    fileName: wk.key + '_' + project.id + '_' + String(settings['Report Suffix'] || 'clockify') + '.pdf',
+    generated: fmt_(new Date(), 'MMM d, yyyy h:mm a')
+  };
+}
+
+function reportHtml_(d) {
+  const e = esc_;
+  const cell = 'padding:5px 8px;border-bottom:1px solid #d9dde3;font-size:10pt;vertical-align:top;';
+  const head = 'padding:6px 8px;border-bottom:2px solid #1f3a5f;font-size:9pt;color:#1f3a5f;text-align:left;';
+  const right = 'text-align:right;';
+  const amtCols = d.showAmounts;
+
+  let detail = '';
+  let lastDate = '';
+  d.entries.forEach(function (x) {
+    const showDate = x.date !== lastDate;
+    lastDate = x.date;
+    detail += '<tr>' +
+      '<td style="' + cell + 'white-space:nowrap;">' + (showDate ? e(longDay_(x.date)) : '') + '</td>' +
+      '<td style="' + cell + '">' + e(x.task || '-') + '</td>' +
+      '<td style="' + cell + '">' + e(x.description || '') + (x.billable ? '' : ' <i style="color:#777;">(no charge)</i>') + '</td>' +
+      '<td style="' + cell + 'white-space:nowrap;">' + (x.start ? e(time12_(x.start) + ' - ' + time12_(x.end)) : '') + '</td>' +
+      '<td style="' + cell + right + '">' + hm_(x.reportHours) + '</td>' +
+      '<td style="' + cell + right + '">' + x.reportHours.toFixed(2) + '</td>' +
+      (amtCols ? '<td style="' + cell + right + '">' + (x.billable ? money_(x.amount) : '-') + '</td>' : '') +
+      '</tr>';
+  });
+
+  let summary = '';
+  d.byTask.forEach(function (t) {
+    const pct = d.totalHours ? Math.round(t.hours / d.totalHours * 100) : 0;
+    summary += '<tr><td style="' + cell + '">' + e(t.task) + '</td>' +
+      '<td style="' + cell + right + '">' + hm_(t.hours) + '</td>' +
+      '<td style="' + cell + right + '">' + t.hours.toFixed(2) + '</td>' +
+      '<td style="' + cell + right + '">' + pct + '%</td></tr>';
+  });
+
+  const tot = 'padding:7px 8px;font-weight:bold;font-size:10.5pt;border-top:2px solid #1f3a5f;';
+  const totalsRow = '<tr>' +
+    '<td colspan="4" style="' + tot + '">Total</td>' +
+    '<td style="' + tot + right + '">' + hm_(d.totalHours) + '</td>' +
+    '<td style="' + tot + right + '">' + d.totalHours.toFixed(2) + '</td>' +
+    (amtCols ? '<td style="' + tot + right + '">' + money_(d.totalAmount) + '</td>' : '') +
+    '</tr>';
+
+  const meta = function (label, value) {
+    return '<tr><td width="90" style="padding:2px 14px 2px 0;font-size:9pt;color:#5b6573;white-space:nowrap;">' + label +
+      '</td><td style="padding:2px 0;font-size:10pt;">' + value + '</td></tr>';
+  };
+
+  const notes = [];
+  if (d.billableHours !== d.totalHours) notes.push('Billable hours: ' + d.billableHours.toFixed(2) + ' of ' + d.totalHours.toFixed(2) + '.');
+  if (amtCols && d.rates.length) notes.push('Rate: ' + d.rates.map(function (r) { return money_(r) + '/hr'; }).join(', ') + '.');
+
+  return '<html><head><meta charset="utf-8"><title>' + e(d.fileName) + '</title>' +
+    '<style>@page { size: letter; margin: 0.6in; }</style></head>' +
+    '<body style="font-family:Arial,Helvetica,sans-serif;color:#1d2530;margin:0;">' +
+    '<table style="width:100%;border-collapse:collapse;"><tr>' +
+    '<td style="vertical-align:bottom;"><div style="font-size:17pt;font-weight:bold;color:#1f3a5f;">' + e(d.company) + '</div>' +
+    (d.contact ? '<div style="font-size:9pt;color:#5b6573;">' + e(d.contact) + '</div>' : '') + '</td>' +
+    '<td style="vertical-align:bottom;text-align:right;"><div style="font-size:13pt;font-weight:bold;">' + e(d.title) + '</div>' +
+    '<div style="font-size:10pt;color:#5b6573;">' + e(d.week.key) + '</div></td>' +
+    '</tr></table>' +
+    '<div style="border-bottom:3px solid #1f3a5f;margin:6px 0 12px 0;"></div>' +
+    '<table style="border-collapse:collapse;margin-bottom:14px;">' +
+    meta('Client', e(d.client.id + ' - ' + d.client.name) + (d.client.contact ? ' (' + e(d.client.contact) + ')' : '')) +
+    meta('Project', e(d.project.id + ' - ' + d.project.name)) +
+    meta('Week', e(d.week.key + ': ' + d.week.label)) +
+    meta('Total time', '<b>' + hm_(d.totalHours) + '</b> (' + d.totalHours.toFixed(2) + ' hrs)' +
+      (amtCols ? ' &nbsp; <b>' + money_(d.totalAmount) + '</b>' : '')) +
+    '</table>' +
+    '<div style="font-size:10.5pt;font-weight:bold;color:#1f3a5f;margin:4px 0;">Summary by task</div>' +
+    '<table style="width:70%;border-collapse:collapse;margin-bottom:16px;">' +
+    '<tr><th style="' + head + '">Task</th><th style="' + head + right + '">Time</th><th style="' + head + right + '">Hours</th><th style="' + head + right + '">Share</th></tr>' +
+    summary + '</table>' +
+    '<div style="font-size:10.5pt;font-weight:bold;color:#1f3a5f;margin:4px 0;">Detail</div>' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+    '<tr><th width="11%" style="' + head + '">Date</th><th width="16%" style="' + head + '">Task</th><th style="' + head + '">Description</th>' +
+    '<th width="17%" style="' + head + '">Time</th><th width="9%" style="' + head + right + '">Duration</th><th width="8%" style="' + head + right + '">Hours</th>' +
+    (amtCols ? '<th width="10%" style="' + head + right + '">Amount</th>' : '') + '</tr>' +
+    detail + totalsRow + '</table>' +
+    (notes.length ? '<div style="font-size:8.5pt;color:#5b6573;margin-top:10px;">' + e(notes.join(' ')) + '</div>' : '') +
+    '<div style="font-size:8pt;color:#8a929c;margin-top:18px;">Generated ' + e(d.generated) + ' &middot; ' + e(d.fileName) + '</div>' +
+    '</body></html>';
+}
+
+function reportFolder_(project) {
+  const settings = settings_();
+  if (yes_(settings['Save To Project Folder'])) {
+    try {
+      const f = projectFolder_(project, false);
+      if (f) return f;
+    } catch (err) {
+      log_('Report folder', 'Project folder lookup failed: ' + err.message);
+    }
+  }
+  const id = String(settings['Reports Folder ID'] || '').trim();
+  if (id) {
+    try { return DriveApp.getFolderById(id); } catch (err) { /* fall through and create a new one */ }
+  }
+  const folder = DriveApp.createFolder('Fultz Time Reports');
+  setSetting_('Reports Folder ID', folder.getId());
+  return folder;
+}
+
+function firstFolderStartingWith_(parent, prefixes) {
+  const it = parent.getFolders();
+  const all = [];
+  while (it.hasNext()) all.push(it.next());
+  for (let i = 0; i < prefixes.length; i++) {
+    for (let j = 0; j < all.length; j++) {
+      if (all[j].getName().indexOf(prefixes[i]) === 0) return all[j];
+    }
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Data access                                                        */
+/* ------------------------------------------------------------------ */
+
+function book_() {
+  const id = PropertiesService.getScriptProperties().getProperty('BOOK_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  const active = SpreadsheetApp.getActive();
+  if (active) return active;
+  throw new Error('Run setup() once from the Apps Script editor first.');
+}
+
+function sheet_(name) {
+  const sh = book_().getSheetByName(name);
+  if (!sh) throw new Error('The "' + name + '" tab is missing. Run setup() again.');
+  return sh;
+}
+
+/** Reads a tab into objects keyed by header name. Rows are 2-based in _row. */
+function readTable_(name) {
+  const sh = sheet_(name);
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const cols = COLS[name];
+  const values = sh.getRange(2, 1, last - 1, cols.length).getValues();
+  const out = [];
+  values.forEach(function (r, i) {
+    if (r.every(function (v) { return v === '' || v === null; })) return;
+    const o = { _row: i + 2 };
+    cols.forEach(function (c, j) { o[c] = r[j] === undefined || r[j] === null ? '' : r[j]; });
+    out.push(o);
+  });
+  return out;
+}
+
+/** Appends a row, marking text columns as plain text first so Sheets keeps "08:30" and "006-004" as typed. */
+function appendRow_(name, values) {
+  const sh = sheet_(name);
+  const row = sh.getLastRow() + 1;
+  if (row > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 50);
+  textFormat_(name, row, 1);
+  sh.getRange(row, 1, 1, values.length).setValues([values]);
+  return row;
+}
+
+function textFormat_(name, row, count) {
+  const sh = sheet_(name);
+  if (row + count - 1 > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), row + count - 1 - sh.getMaxRows() + 50);
+  (TEXT_COLS[name] || []).forEach(function (col) {
+    sh.getRange(row, COLS[name].indexOf(col) + 1, count, 1).setNumberFormat('@');
+  });
+}
+
+function writeRow_(name, rowNum, values) {
+  textFormat_(name, rowNum, 1);
+  sheet_(name).getRange(rowNum, 1, 1, values.length).setValues([values]);
+}
+
+function findRowBy_(name, col, value) {
+  const rows = readTable_(name);
+  for (let i = 0; i < rows.length; i++) {
+    if (text_(rows[i][col]) === value) return rows[i]._row;
+  }
+  return 0;
+}
+
+function settings_() {
+  const out = {};
+  readTable_(TAB.SETTINGS).forEach(function (r) { out[String(r.Setting)] = r.Value; });
+  return out;
+}
+
+function setSetting_(name, value) {
+  const row = findRowBy_(TAB.SETTINGS, 'Setting', name);
+  if (row) sheet_(TAB.SETTINGS).getRange(row, 2).setValue(value);
+  else sheet_(TAB.SETTINGS).appendRow([name, value, '']);
+}
+
+function clients_() {
+  return readTable_(TAB.CLIENTS).map(function (r) {
+    return {
+      id: text_(r['Client ID']), name: String(r.Name || ''), contact: String(r.Contact || ''),
+      email: String(r.Email || ''), rate: r['Default Rate'] === '' ? '' : Number(r['Default Rate']),
+      active: bool_(r.Active), notes: String(r.Notes || ''), clientStatus: String(r['Client Status'] || '')
+    };
+  }).filter(function (c) { return c.id; }).sort(function (a, b) { return a.id < b.id ? -1 : 1; });
+}
+
+function projects_() {
+  const tasks = {};
+  readTable_(TAB.TASKS)
+    .filter(function (t) { return t.Task !== '' && (t.Active === '' || bool_(t.Active)); })
+    .sort(function (a, b) { return (Number(a.Sort) || 0) - (Number(b.Sort) || 0); })
+    .forEach(function (t) {
+      const pid = text_(t['Project ID']);
+      (tasks[pid] = tasks[pid] || []).push(String(t.Task));
+    });
+  return readTable_(TAB.PROJECTS).map(function (r) {
+    const id = text_(r['Project ID']);
+    return {
+      id: id, clientId: text_(r['Client ID']) || id.slice(0, 3), name: String(r.Name || ''),
+      status: String(r.Status || 'Not started'), active: bool_(r.Active),
+      rate: numOrBlank_(r.Rate), estHrs: numOrBlank_(r['Est Hrs']),
+      deliverable: String(r.Deliverable || ''), notes: String(r.Notes || ''),
+      created: r.Created instanceof Date ? r.Created.toISOString() : String(r.Created || ''),
+      priority: String(r.Priority || ''), billingModel: String(r['Billing Model'] || ''),
+      quoted: numOrBlank_(r['Quoted Amount']), invoiced: bool_(r.Invoiced),
+      start: dateText_(r.Start), end: dateText_(r.End), priorHours: numOrBlank_(r['Prior Hours']),
+      folderId: String(r['Folder ID'] || ''), statusChanged: dateText_(r['Status Changed']),
+      notionUrl: String(r['Notion URL'] || ''),
+      tasks: tasks[id] || []
+    };
+  }).filter(function (p) { return p.id; }).sort(function (a, b) { return a.id < b.id ? -1 : 1; });
+}
+
+function projectToRow_(p) {
+  return [p.id, p.clientId, p.name, p.status, p.active, p.rate, p.estHrs, p.deliverable, p.notes,
+    p.created ? new Date(p.created) : new Date(), p.priority, p.billingModel, p.quoted, p.invoiced,
+    p.start, p.end, p.priorHours, p.folderId, p.statusChanged, p.notionUrl];
+}
+
+function project_(id) {
+  const p = projects_().filter(function (x) { return x.id === String(id || ''); })[0];
+  if (!p) throw new Error('Pick a project.');
+  return p;
+}
+
+function items_() {
+  return readTable_(TAB.ITEMS).map(function (r) {
+    return {
+      id: String(r['Item ID']), projectId: text_(r['Project ID']), text: String(r.Text || ''),
+      done: bool_(r.Done), due: dateText_(r.Due), sort: Number(r.Sort) || 0,
+      created: r.Created instanceof Date ? r.Created.toISOString() : String(r.Created || ''),
+      completed: dateText_(r.Completed)
+    };
+  }).filter(function (i) { return i.id && i.text; })
+    .sort(function (a, b) { return a.sort - b.sort; });
+}
+
+function templates_() {
+  const out = {};
+  readTable_(TAB.TEMPLATES)
+    .sort(function (a, b) { return (Number(a.Sort) || 0) - (Number(b.Sort) || 0); })
+    .forEach(function (r) {
+      const name = String(r.Template || '').trim();
+      if (!name || !r.Task) return;
+      (out[name] = out[name] || []).push(String(r.Task));
+    });
+  return out;
+}
+
+function rateFor_(p, clientList) {
+  if (p.rate !== '' && !isNaN(p.rate)) return p.rate;
+  const c = (clientList || clients_()).filter(function (x) { return x.id === p.clientId; })[0];
+  return c && c.rate !== '' ? c.rate : '';
+}
+
+function entryFromRow_(r) {
+  const date = r.Date instanceof Date ? fmt_(r.Date, 'yyyy-MM-dd') : String(r.Date || '');
+  return {
+    id: String(r['Entry ID'] || ''), date: date, week: String(r.Week || '') || (date ? weekKeyOf_(date) : ''),
+    clientId: text_(r['Client ID']), projectId: text_(r['Project ID']),
+    task: String(r.Task || ''), description: String(r.Description || ''),
+    start: timeText_(r.Start), end: timeText_(r.End),
+    hours: Number(r.Hours) || 0, billable: r.Billable === '' ? true : bool_(r.Billable),
+    rate: r.Rate === '' ? '' : Number(r.Rate),
+    startTS: tsText_(r['Start TS']), endTS: tsText_(r['End TS']),
+    _row: r._row
+  };
+}
+
+function entryToRow_(e) {
+  return [e.id, e.date, e.week, e.clientId, e.projectId, e.task, e.description, e.start, e.end,
+    e.hours, e.billable, e.rate, e.startTS, e.endTS, e.created || new Date(), e.updated || new Date()];
+}
+
+function findEntry_(id) {
+  const rows = readTable_(TAB.ENTRIES);
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i]['Entry ID']) === String(id)) return { row: rows[i]._row, entry: entryFromRow_(rows[i]) };
+  }
+  return null;
+}
+
+function findRunning_() {
+  const rows = readTable_(TAB.ENTRIES);
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const e = entryFromRow_(rows[i]);
+    if (e.startTS && !e.endTS) return { row: rows[i]._row, entry: e };
+  }
+  return null;
+}
+
+function running_(entries) {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (entries[i].startTS && !entries[i].endTS) return entries[i];
+  }
+  return null;
+}
+
+function stopRunning_() {
+  const found = findRunning_();
+  if (!found) return null;
+  const e = found.entry;
+  const end = new Date();
+  const start = new Date(e.startTS);
+  e.end = fmt_(end, 'HH:mm');
+  e.endTS = end.toISOString();
+  e.hours = round4_(Math.max(0, end.getTime() - start.getTime()) / 3600000);
+  e.updated = end;
+  writeRow_(TAB.ENTRIES, found.row, entryToRow_(e));
+  log_('Stop timer', e.projectId + ' ' + e.hours + 'h');
+  return e;
+}
+
+function entrySort_(a, b) {
+  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+  const sa = a.start || '99:99', sb = b.start || '99:99';
+  return sa < sb ? -1 : sa > sb ? 1 : 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* ISO 8601 weeks (Monday-Sunday; week 1 contains the first Thursday)  */
+/* ------------------------------------------------------------------ */
+
+function weekKeyOf_(dateStr) {
+  const p = dateStr.split('-').map(Number);
+  const d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+  const dow = (d.getUTCDay() + 6) % 7; // Monday = 0
+  d.setUTCDate(d.getUTCDate() - dow + 3); // Thursday of this week
+  const year = d.getUTCFullYear();
+  const firstThu = new Date(Date.UTC(year, 0, 4));
+  firstThu.setUTCDate(firstThu.getUTCDate() - ((firstThu.getUTCDay() + 6) % 7) + 3);
+  const week = 1 + Math.round((d - firstThu) / 604800000);
+  return year + 'w' + (week < 10 ? '0' : '') + week;
+}
+
+function weekInfo_(key) {
+  const m = /^(\d{4})w(\d{1,2})$/.exec(String(key || ''));
+  if (!m) throw new Error('Bad week: ' + key);
+  const year = Number(m[1]), week = Number(m[2]);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const monday = new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * 86400000 + (week - 1) * 604800000);
+  const days = [];
+  for (let i = 0; i < 7; i++) days.push(utcDateStr_(new Date(monday.getTime() + i * 86400000)));
+  const prev = weekKeyOf_(utcDateStr_(new Date(monday.getTime() - 86400000)));
+  const next = weekKeyOf_(utcDateStr_(new Date(monday.getTime() + 7 * 86400000)));
+  return { key: weekKeyOf_(days[0]), start: days[0], end: days[6], days: days, prev: prev, next: next, label: rangeLabel_(days[0], days[6]) };
+}
+
+function utcDateStr_(d) {
+  return d.getUTCFullYear() + '-' + pad2_(d.getUTCMonth() + 1) + '-' + pad2_(d.getUTCDate());
+}
+
+const MONTHS_ = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAYS_ = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function rangeLabel_(a, b) {
+  const pa = a.split('-').map(Number), pb = b.split('-').map(Number);
+  const left = MONTHS_[pa[1] - 1] + ' ' + pa[2] + (pa[0] !== pb[0] ? ', ' + pa[0] : '');
+  const right = (pa[1] !== pb[1] ? MONTHS_[pb[1] - 1] + ' ' : '') + pb[2] + ', ' + pb[0];
+  return left + ' - ' + right;
+}
+
+function longDay_(dateStr) {
+  const p = dateStr.split('-').map(Number);
+  const d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+  return DAYS_[d.getUTCDay()] + ' ' + MONTHS_[p[1] - 1] + ' ' + p[2];
+}
+
+/* ------------------------------------------------------------------ */
+/* Small helpers                                                      */
+/* ------------------------------------------------------------------ */
+
+function withLock_(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return clean_(fn()); } finally { lock.releaseLock(); }
+}
+
+/** google.script.run cannot return Date objects reliably; send plain JSON. */
+function clean_(v) {
+  return v === undefined ? null : JSON.parse(JSON.stringify(v));
+}
+
+function tz_() { return Session.getScriptTimeZone() || 'America/New_York'; }
+function fmt_(d, pattern) { return Utilities.formatDate(d, tz_(), pattern); }
+function todayStr_() { return fmt_(new Date(), 'yyyy-MM-dd'); }
+function me_() { try { return Session.getActiveUser().getEmail() || ''; } catch (e) { return ''; } }
+function pad2_(n) { return (n < 10 ? '0' : '') + n; }
+function round2_(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+function round4_(n) { return Math.round((Number(n) || 0) * 10000) / 10000; }
+function yes_(v) { return v === true || /^(y|yes|true|1)$/i.test(String(v || '').trim()); }
+function bool_(v) { return v === true || /^(true|yes|y|1)$/i.test(String(v).trim()); }
+function numOrBlank_(v) { return v === '' || v === null || v === undefined || isNaN(Number(v)) ? '' : Number(v); }
+function newId_(prefix) { return prefix + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase(); }
+
+function text_(v) {
+  if (v instanceof Date) return fmt_(v, 'yyyy-MM-dd');
+  return String(v === null || v === undefined ? '' : v).trim();
+}
+
+function dateText_(v) {
+  if (v instanceof Date) return fmt_(v, 'yyyy-MM-dd');
+  return cleanDate_(v);
+}
+
+function cleanDate_(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '').trim());
+  return m ? m[1] + '-' + m[2] + '-' + m[3] : '';
+}
+
+function timeText_(v) {
+  if (v instanceof Date) return fmt_(v, 'HH:mm');
+  return cleanTime_(v);
+}
+
+function tsText_(v) {
+  if (v instanceof Date) return v.toISOString();
+  return String(v || '');
+}
+
+function cleanTime_(v) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(v || '').trim());
+  if (!m) return '';
+  const h = Number(m[1]), mi = Number(m[2]);
+  if (h > 23 || mi > 59) return '';
+  return pad2_(h) + ':' + pad2_(mi);
+}
+
+function toMin_(t) { const p = t.split(':'); return Number(p[0]) * 60 + Number(p[1]); }
+
+/** "1:30" -> 1.5, "1.5" -> 1.5, "90m" -> 1.5 */
+function parseDuration_(v) {
+  const s = String(v === undefined || v === null ? '' : v).trim().toLowerCase();
+  let m = /^(\d+):(\d{1,2})$/.exec(s);
+  if (m) return Number(m[1]) + Number(m[2]) / 60;
+  m = /^(\d+)\s*m(in)?$/.exec(s);
+  if (m) return Number(m[1]) / 60;
+  m = /^(\d*\.?\d+)\s*h?$/.exec(s);
+  if (m) return Number(m[1]);
+  return 0;
+}
+
+function hm_(hours) {
+  const mins = Math.round((Number(hours) || 0) * 60);
+  return Math.floor(mins / 60) + ':' + pad2_(mins % 60);
+}
+
+function time12_(t) {
+  if (!t) return '';
+  const p = t.split(':').map(Number);
+  const h = p[0] % 12 === 0 ? 12 : p[0] % 12;
+  return h + ':' + pad2_(p[1]) + (p[0] < 12 ? ' AM' : ' PM');
+}
+
+function money_(n) {
+  const v = round2_(n);
+  const s = Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (v < 0 ? '-$' : '$') + s;
+}
+
+function esc_(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function log_(action, details) {
+  try {
+    const sh = book_().getSheetByName(TAB.LOG);
+    if (sh) sh.appendRow([new Date(), me_(), action, String(details || '')]);
+  } catch (e) { /* logging must never block a save */ }
+}
+
+/**
+ * Starting data for Fultz Ops, copied once from the Notion Client Board and
+ * Projects databases (Nov 10, 2026). setup() only fills blanks, so running it
+ * again never overwrites anything you've changed in the Sheet.
+ */
+
+const SEED_TEMPLATES = {
+  'Drawing Package': ['Review client info & markups', '3D modeling', 'Drawing creation', 'Self-check / QC',
+    'Revisions', 'Client communication', 'Export & delivery'],
+  'Laser Files': ['Review client info', '3D modeling', 'Flat patterns & DXF/STEP export', 'File check',
+    'Revisions', 'Client communication'],
+  'CAD Model': ['Concept & research', '3D modeling', 'Revisions', 'Client communication', 'Export & delivery'],
+  'General': ['Client communication', '3D modeling', 'Drawings', 'Revisions', 'Admin']
+};
+
+// [Client ID, Name, Contact, Default rate (inferred from Notion project rates), Active, Client Status]
+const SEED_CLIENTS = [
+  ['001', 'Florida Metalworks', 'Shane Kahl', 65, true, 'Invoice Per Job'],
+  ['002', 'Pierce Metal Fabrication', 'Keith Pierce', 60, true, 'Invoice Per Job'],
+  ['003', 'Mark Brink', 'Mark Brink', 65, false, 'Dormant'],
+  ['004', 'Grayson Webster', 'Grayson Webster', 65, false, 'Dormant'],
+  ['005', 'Shandra Anderson', 'Shandra Anderson', 50, true, 'Hourly Contract'],
+  ['006', 'AlumiWorx', 'Steve Fetgatter', 65, true, 'Hourly Contract'],
+  ['007', 'ProFusionUSA', 'Fred Craig', 65, true, 'No Contract'],
+  ['008', 'KP Aviation Services', 'Micah Roe', 65, true, 'No Contract'],
+  ['009', 'Ndeye Gueye', 'Ndeye Gueye', 50, false, 'Dormant'],
+  ['010', 'TJ Nichols', 'TJ Nichols', 50, true, ''],
+  ['011', 'Timberline Welding Services', 'Waylon Sherwood', 65, true, 'Invoice Per Job'],
+  ['012', 'Semita Solutions', 'Chris Burris', 65, true, 'Hourly Contract'],
+  ['013', 'Golden Holler Works', 'Shane Linville', 65, true, 'Invoice Per Job'],
+  ['014', 'Florida State Fence', '', 65, true, 'Invoice Per Job'],
+  ['015', 'Vickery Services', 'Richard Vickery', 65, true, 'Invoice Per Job'],
+  ['016', 'CR Fabrication', 'Chris Radkovitch', 65, true, 'Invoice Per Job'],
+  ['017', 'Krave Gutters', 'Christopher Tomasetti', 65, true, 'Block Contract']
+];
+
+// [Project ID, Name, Status, Rate, Est Hrs, Deliverable]
+const SEED_PROJECTS = [
+  ['001-001', 'Shop Cart', 'Done'], ['001-002', 'Railing Tag Team', 'Done'],
+  ['001-003', 'Life Jacket Cabinet', 'Done'], ['002-001', 'Firehouse Subs Pickle Barrel Frame', 'Done'],
+  ['002-002', "DWG to STEP Conversion for O'Neal Steel", 'Done'], ['002-003', 'Stair Stringers', 'Done'],
+  ['002-004', 'Stair Railing', 'Done'], ['002-005', '16gaSS Countertop', 'Done'],
+  ['002-006', 'DXF Cabinet Conversion', 'Done'], ['002-007', 'Handrail', 'Done'],
+  ['002-008', 'Truss Frame', 'Done'], ['002-009', 'Gate 20260603', 'Done'],
+  ['002-010', 'Beer Drain', 'Done'], ['002-011', 'Sheet Metal Cones', 'Done'],
+  ['002-012', 'Sheet Metal Cylinder Transition', 'Final Invoice Sent', 60, 4, 'Laser Files'],
+  ['002-013', 'Aluminum Cart', 'Final Invoice Sent', 60, 6, 'Laser Files'],
+  ['003-001', 'Adjustable Bumper', 'Defunct'], ['004-001', 'TMNT Nose Piece', 'Defunct'],
+  ['005-001', 'Crow design & bracket', 'Done', 50, 6, 'CAD'],
+  ['006-001', 'Eglin AFB Job 1', 'Done', 65, 5, 'Drawing'], ['006-002', 'Eglin AFB Job 2', 'Done'],
+  ['006-003', 'Eglin AFB Job 3', 'Done'],
+  ['006-004', 'Hurlburt Field Drawings', 'In progress', '', '', 'Drawing Package'],
+  ['008-001', 'Tail Wheel Ski', 'Preplanning'],
+  ['009-001', 'Collapsible Shower Caddy', 'Defunct', 50, 2, 'CAD'],
+  ['010-001', 'Mezzanine & Stairwell', 'Done', 50, '', 'Drawing'],
+  ['010-002', 'Lakeside Elem Stairs', 'Done', 50, '', 'Drawing'],
+  ['010-003', 'Sheet Metal Storage Box', 'Done', 50, '', 'Drawing'],
+  ['010-004', 'Loading Dock Ramp', 'Done', 50, '', 'Drawing'],
+  ['010-005', 'HSS Truss', 'In progress', 50, 10, 'Drawing Package'],
+  ['010-006', "George's Music - Jax Beach", 'In progress', 50, 0.5, 'Drawing Package'],
+  ['011-001', 'Railings', 'Done'], ['011-002', 'Railing', 'Done'],
+  ['012-001', 'Watch', 'In progress'], ['013-001', 'Coin Stand', 'In progress'],
+  ['014-001', 'Fence Drawings', 'Done'], ['015-001', 'MV Petrus Stairwell Handrail', 'Done'],
+  ['016-001', 'Pickup Service Bed Rear Gate', 'Done', 65, 1],
+  ['016-002', 'Leaf Vacuum Box', 'In progress', 65, 10, 'Drawing Package'],
+  ['016-003', 'Stokes Basket Cabinet', 'In progress', 65, 5, 'Drawing Package'],
+  ['017-001', 'Kritter Grate', 'In progress', 65, 15, 'CAD']
+];
+
+const SEED_INVOICED = ['001-001', '001-002', '002-001', '002-005', '002-009', '002-010', '002-011', '003-001',
+  '005-001', '006-001', '006-002', '006-003', '009-001', '010-002', '010-003', '010-004', '012-001', '015-001', '016-001'];
+
+// Extra project details from Notion. prior = "Time Logged" hours (from Clockify) before the switch.
+const SEED_EXTRA = {
+  '002-012': { start: '2026-09-01', end: '2026-09-03', prior: 1.75, quoted: 4,
+    items: ['Model', '3-way formed drawing', 'Export flat patterns'] },
+  '002-013': { start: '2026-09-09', end: '2026-09-10', prior: 3.5,
+    notes: 'Laser cut files for small cart\n1/8" aluminum sheet shelves, v16 die\n1x1x0.125" 6063 shelf supports\n1.5x1.5x0.125" 6063 end frames',
+    items: ['Model', 'Assembly drawing', 'Files'] },
+  '005-001': { priority: 'Low', start: '2026-04-06', end: '2026-04-09', prior: 6 },
+  '006-001': { priority: 'High', start: '2026-04-06', end: '2026-04-07', prior: 5 },
+  '006-004': { notes: 'Stair railings for dormitories at Hurlburt Field' },
+  '009-001': { priority: 'Low', start: '2026-04-06', prior: 3 },
+  '010-001': { prior: 32 }, '010-002': { prior: 15 }, '010-003': { prior: 5 }, '010-004': { prior: 22.5 },
+  '010-005': { start: '2026-08-31', end: '2026-09-04', prior: 2.75,
+    notes: '12\' long, 1:12 pitch truss. Rafter & Chord out of 2x3x14ga A513, webbing out of 1 1/2" sq 14ga A513.',
+    items: ['Model', 'Part Separation', 'Drawing Package', 'File Exports'] },
+  '010-006': { start: '2026-09-17',
+    notes: 'P001 - Galvanizing vent - 1\'4" long 4" sch 40 pipe, with .5" x .5" coaxial notch at one end' },
+  '016-001': { prior: 1 },
+  '016-002': { start: '2026-09-14', end: '2026-09-17', prior: 0.5,
+    notes: 'Leaf box - steel & aluminum\n8\' tall\n6\' wide\n10\' 3/4" long\n\nGate which will latch into the existing tailgate. Reference photos are on the old Notion page.' },
+  '016-003': { prior: 4.75,
+    notes: 'Stokes Basket holder\nDual top lids w/ weight capacity\nLaying flat w/ divider in the middle\n25" W, 8 1/2" T, 132 1/2" L\nFirst compartment will be 85 1/2" with a lid on front and top\nSecond compartment is 47" with only one lid\n\nReference photos are on the old Notion page.' },
+  '017-001': { priority: 'High', billing: 'Retainer', start: '2026-09-03', end: '2026-09-15', prior: 15,
+    notes: 'Gutter insert guard and install template model for Kritter Grate, suitable to produce patent drawings and use for injection molding tooling creation.',
+    items: ['Lower walls of grate 3mm', 'Decrease outer edge of grate to 2mm', 'Widen the grate 4mm'] }
+};
+
+const SEED_NOTION = {
+  '001-001': '3cd1baa12885817795d7f6c53fb09d24', '001-002': '3cd1baa12885818195badc972acc5ec4',
+  '002-001': '3cd1baa12885818e9f70cb878c437a0d', '002-005': '3cd1baa1288581f38cb3e6418ba04f06',
+  '002-009': '3cd1baa1288581d9b66dd9c86a38ae06', '002-010': '3cd1baa128858109bb15d6e6202e3694',
+  '002-011': '3cd1baa128858127998dccb71193c47d', '002-012': '3ce1baa1288580d0b951d5751a142c5c',
+  '002-013': '3d61baa1288580ecb4faeffb0af8d82b', '003-001': '3cd1baa1288581ef96cfe274b298f745',
+  '005-001': '3381baa12885804a8a6acc2866747ac2', '006-001': '3381baa128858064b5ddc8f51982f630',
+  '006-002': '3cd1baa12885818cb6e8d8cb0422dcb0', '006-003': '3cd1baa12885818491bbf7ce44e90c8c',
+  '006-004': '4061baa1288580f38cdcdc07b2fc2ad1', '008-001': '3cd1baa1288581359d1ccd57d6fbc0d2',
+  '009-001': '3381baa128858067af67deda2ecfaeef', '010-001': '3cd1baa12885810bb135c86ec34fab44',
+  '010-002': '3cd1baa1288581d88697cc6831375c11', '010-003': '3cd1baa12885818ca1e0df31897f92a4',
+  '010-004': '3cd1baa1288581a0b403dc8eeb443711', '010-005': '3cd1baa12885809fb6eadcdac2993059',
+  '010-006': '3de1baa128858024859ffdf964f7d3f4', '012-001': '3cd1baa128858111a63ecde5446a64ad',
+  '013-001': '3cd1baa128858100ae0fd3ebfd73f191', '015-001': '3cd1baa1288581648460c0d5e0ec9591',
+  '016-001': '3cd1baa12885816b9ce8d8d613909bc0', '016-002': '3db1baa12885804e8927eed48729e272',
+  '016-003': '3db1baa1288580ac90d8c06d5d11c4fd', '017-001': '3d01baa1288580368651fbd8a8f54d2e'
+};
+
+</script>
+
+<script>
+/* =====================================================================
+ * Data layer: the same Code.gs as the desktop and Google versions runs
+ * in memory against the CSV files in your Dropbox folder.
+ * ===================================================================== */
+const DBX = window.FULTZ_TEST_API || { api: 'https://api.dropboxapi.com', content: 'https://content.dropboxapi.com', www: 'https://www.dropbox.com' };
+const TABLES = ['Clients', 'Projects', 'Tasks', 'Task Templates', 'Action Items', 'Entries', 'Settings', 'Workflow']; // the Log stays on the computers
+const store = {
+  get(k) { try { return localStorage.getItem('fultz.' + k); } catch (e) { return null; } },
+  set(k, v) { try { v === null ? localStorage.removeItem('fultz.' + k) : localStorage.setItem('fultz.' + k, v); } catch (e) { } }
+};
+
+/* ---- Dropbox sign-in (PKCE, no server needed; you paste the code Dropbox shows) ---- */
+function b64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+async function startSignIn() {
+  const key = $('appKey').value.trim();
+  if (!key) return toast('Paste your Dropbox app key first.', true);
+  store.set('appKey', key);
+  store.set('folder', normFolder($('folderIn').value));
+  const v = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const ch = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v))));
+  store.set('verifier', v);
+  const url = DBX.www + '/oauth2/authorize?client_id=' + encodeURIComponent(key) + '&response_type=code&token_access_type=offline' +
+    '&code_challenge=' + ch + '&code_challenge_method=S256';
+  window.open(url, '_blank');
+  $('codeStep').style.display = '';
+}
+async function finishSignIn() {
+  const code = $('codeIn').value.trim();
+  if (!code) return toast('Paste the code Dropbox showed you.', true);
+  const body = new URLSearchParams({ code: code, grant_type: 'authorization_code', client_id: store.get('appKey'), code_verifier: store.get('verifier') || '' });
+  const r = await fetch(DBX.api + '/oauth2/token', { method: 'POST', body: body });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) return toast('Dropbox said: ' + (j.error_description || j.error || r.status) + '. Start again.', true);
+  saveToken(j);
+  store.set('verifier', null);
+  boot();
+}
+function saveToken(j) {
+  if (j.refresh_token) store.set('refresh', j.refresh_token);
+  store.set('access', j.access_token);
+  store.set('expires', String(Date.now() + (j.expires_in || 14000) * 1000 - 60000));
+}
+async function accessToken() {
+  if (store.get('access') && Date.now() < Number(store.get('expires') || 0)) return store.get('access');
+  const rt = store.get('refresh');
+  if (!rt) throw new Error('Sign in to Dropbox again.');
+  const r = await fetch(DBX.api + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: rt, client_id: store.get('appKey') }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { if (r.status === 400) store.set('refresh', null); throw new Error('Dropbox sign-in expired. Open ⚙︎ and sign in again.'); }
+  saveToken(j);
+  return j.access_token;
+}
+function headerJson(o) { return JSON.stringify(o).replace(/[\u007f-￿]/g, c => '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4)); }
+async function dbx(host, path, opts) {
+  const t = await accessToken();
+  const h = Object.assign({ Authorization: 'Bearer ' + t }, opts.headers || {});
+  const r = await fetch(DBX[host] + path, { method: 'POST', headers: h, body: opts.body });
+  if (r.status === 401) { store.set('access', null); throw new Error('Dropbox sign-in expired. Try again.'); }
+  return r;
+}
+function normFolder(f) { f = String(f || '/Fultz Ops Data').trim().replace(/\\/g, '/'); if (!f.startsWith('/')) f = '/' + f; return f.replace(/\/+$/, ''); }
+function folder() { return store.get('folder') || '/Fultz Ops Data'; }
+
+/* ---- CSV ---- */
+function parseCsv(text) {
+  text = text.replace(/^﻿/, '');
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; }
+      else f += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows;
+}
+function toCsv(rows) {
+  return '﻿' + rows.map(r => r.map(v => /[",\r\n]|^\s|\s$/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v).join(',')).join('\r\n') + '\r\n';
+}
+
+/* ---- spreadsheet stand-in (same behaviour as the desktop edition) ---- */
+function Sheet(name) { this.name = name; this.rows = []; this.rev = ''; this.dirty = false; this.exists = false; this.maxRows = 1000; }
+Sheet.prototype.getName = function () { return this.name; };
+Sheet.prototype.getLastRow = function () { for (let i = this.rows.length - 1; i >= 0; i--) { if (this.rows[i] && this.rows[i].some(v => v !== '' && v != null)) return i + 1; } return 0; };
+Sheet.prototype.getMaxRows = function () { return Math.max(this.maxRows, this.rows.length); };
+Sheet.prototype.insertRowsAfter = function (a, n) { this.maxRows = this.getMaxRows() + n; };
+Sheet.prototype.setFrozenRows = function () {};
+Sheet.prototype.set = function (r, c, v) { while (this.rows.length < r) this.rows.push([]); const row = this.rows[r - 1]; while (row.length < c) row.push(''); if (row[c - 1] !== v) { row[c - 1] = v; this.dirty = true; } };
+Sheet.prototype.get = function (r, c) { const v = (this.rows[r - 1] || [])[c - 1]; return v == null ? '' : v; };
+Sheet.prototype.getRange = function (r, c, nr, nc) { return new Range(this, r, c, nr || 1, nc || 1); };
+Sheet.prototype.appendRow = function (vals) { const r = this.getLastRow() + 1; vals.forEach((v, i) => this.set(r, i + 1, v)); };
+Sheet.prototype.deleteRow = function (r) { this.rows.splice(r - 1, 1); this.dirty = true; };
+function Range(sh, r, c, nr, nc) { Object.assign(this, { sh, r, c, nr, nc }); }
+Range.prototype.getValues = function () { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.get(this.r + i, this.c + j)); o.push(row); } return o; };
+Range.prototype.setValues = function (v) { v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x))); return this; };
+Range.prototype.setValue = function (v) { this.sh.set(this.r, this.c, v); return this; };
+Range.prototype.clearContent = function () { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) { const row = this.sh.rows[this.r + i - 1]; if (row && row[this.c + j - 1] !== undefined && row[this.c + j - 1] !== '') { row[this.c + j - 1] = ''; this.sh.dirty = true; } } return this; };
+Range.prototype.setNumberFormat = function () { return this; };
+Range.prototype.setFontWeight = function () { return this; };
+const book = {
+  sheets: {}, getId: () => 'DROPBOX',
+  getSheetByName(n) { const s = this.sheets[n]; return s && s.exists ? s : null; },
+  insertSheet() { throw new Error('Run Fultz Ops on your computer once first. It creates the data files.'); },
+  setSpreadsheetTimeZone() {}
+};
+function normalize(sh) {
+  if (!sh.rows.length) return;
+  sh.rows[0].forEach((h, i) => {
+    let fix = null;
+    if (h === 'Client ID') fix = v => /^\d{1,2}$/.test(v) ? v.padStart(3, '0') : v;
+    else if (h === 'Project ID') fix = v => { const m = /^(\d{1,3})-(\d{1,3})$/.exec(v); return m ? m[1].padStart(3, '0') + '-' + m[2].padStart(3, '0') : v; };
+    else if (/^(Date|Start|End|Due|Status Changed|Completed)$/.test(h)) fix = v => { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v); return m ? m[3] + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0') : v; };
+    if (fix) for (let r = 1; r < sh.rows.length; r++) { const v = sh.rows[r][i]; if (v) sh.rows[r][i] = fix(v); }
+  });
+}
+function cell(v) { if (v == null) return ''; if (v instanceof Date) return v.toISOString(); if (v === true) return 'TRUE'; if (v === false) return 'FALSE'; return String(v); }
+
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
+window.SpreadsheetApp = { getActive: () => book, openById: () => book };
+window.PropertiesService = { getScriptProperties: () => ({ getProperty: () => null, setProperty() {} }) };
+window.LockService = { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) };
+window.Session = { getScriptTimeZone: () => TZ, getActiveUser: () => ({ getEmail: () => '' }) };
+window.DriveApp = { getFolderById() { throw new Error('Project files open on your computer, not the phone.'); }, createFolder() { throw new Error('Not available on the phone.'); } };
+(function () {
+  function parts(d, tz) {
+    const o = {}; new Intl.DateTimeFormat('en-US', { timeZone: tz || TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+      .formatToParts(d).forEach(p => o[p.type] = p.value);
+    if (o.hour === '24') o.hour = '00';
+    return o;
+  }
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  window.Utilities = {
+    formatDate(d, tz, pat) { const p = parts(d, tz), h = +p.hour; return pat.replace(/yyyy|MMM|MM|dd|HH|mm|ss|d|h|a/g, t => ({ yyyy: p.year, MMM: MON[+p.month - 1], MM: p.month, dd: p.day, d: String(+p.day), HH: p.hour, mm: p.minute, ss: p.second, h: String((h % 12) || 12), a: h < 12 ? 'AM' : 'PM' })[t]); },
+    parseDate(str, tz) {
+      const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/.exec(str); const g = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+      const p = parts(new Date(g), tz); let t = g - (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - g);
+      const p2 = parts(new Date(t), tz); t += g - Date.UTC(+p2.year, +p2.month - 1, +p2.day, +p2.hour, +p2.minute); return new Date(t);
+    },
+    getUuid: () => crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join(''),
+    base64Decode() { throw new Error('Not available on the phone.'); },
+    newBlob() { throw new Error('Not available on the phone.'); }
+  };
+})();
+
+/* ---- sync with Dropbox ---- */
+async function listRevs() {
+  const r = await dbx('api', '/2/files/list_folder', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: folder() }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    if (JSON.stringify(j).indexOf('not_found') >= 0) throw new Error('Dropbox folder ' + folder() + ' not found. Check the folder in ⚙︎.');
+    throw new Error('Dropbox error: ' + (j.error_summary || r.status));
+  }
+  let entries = j.entries || [], cursor = j.cursor, more = j.has_more;
+  while (more) {
+    const r2 = await dbx('api', '/2/files/list_folder/continue', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cursor }) });
+    const j2 = await r2.json(); entries = entries.concat(j2.entries || []); cursor = j2.cursor; more = j2.has_more;
+  }
+  const revs = {};
+  entries.forEach(e => { if (e['.tag'] === 'file' && /\.csv$/i.test(e.name)) revs[e.name.replace(/\.csv$/i, '')] = e.rev; });
+  const conflicts = entries.filter(e => /conflicted copy/i.test(e.name)).map(e => e.name);
+  return { revs, conflicts };
+}
+async function download(name) {
+  const r = await dbx('content', '/2/files/download', { headers: { 'Dropbox-API-Arg': headerJson({ path: folder() + '/' + name + '.csv' }) } });
+  if (!r.ok) throw new Error('Could not read ' + name + '.csv from Dropbox (' + r.status + ').');
+  return await r.text();
+}
+async function syncIn(force) {
+  setSync('busy', 'Syncing');
+  const { revs, conflicts } = await listRevs();
+  if (!revs.Projects || !revs.Entries) throw new Error('No Fultz Ops data in ' + folder() + '. Open the app on your computer once first, or fix the folder in ⚙︎.');
+  const changed = TABLES.filter(n => revs[n] && (force || !book.sheets[n] || book.sheets[n].rev !== revs[n]));
+  await Promise.all(changed.map(async n => {
+    const text = await download(n);
+    const sh = book.sheets[n] || (book.sheets[n] = new Sheet(n));
+    sh.rows = parseCsv(text); sh.rev = revs[n]; sh.exists = true; sh.dirty = false; normalize(sh);
+  }));
+  S.conflicts = conflicts;
+  return changed.length;
+}
+async function flush() {
+  for (const n of TABLES) {
+    const sh = book.sheets[n];
+    if (!sh || !sh.dirty) continue;
+    const last = sh.getLastRow();
+    const width = Math.max(1, ...sh.rows.slice(0, Math.max(1, last)).map(r => r.length));
+    const rows = sh.rows.slice(0, Math.max(1, last)).map(r => { const o = []; for (let i = 0; i < width; i++) o.push(cell(r[i])); return o; });
+    const arg = { path: folder() + '/' + n + '.csv', mode: sh.rev ? { '.tag': 'update', update: sh.rev } : { '.tag': 'add' }, autorename: false, mute: true, strict_conflict: true };
+    const r = await dbx('content', '/2/files/upload', { headers: { 'Dropbox-API-Arg': headerJson(arg), 'Content-Type': 'application/octet-stream' }, body: new Blob([toCsv(rows)], { type: 'text/csv' }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 409) { const e = new Error('conflict'); e.conflict = n; throw e; }
+    if (!r.ok) throw new Error('Could not save ' + n + ' to Dropbox: ' + (j.error_summary || r.status));
+    sh.rev = j.rev; sh.dirty = false;
+  }
+}
+
+/** Runs a Code.gs function: pull changes, run it, save. If the computer saved the same file in between, reload and run it once more. */
+let queue = Promise.resolve();
+function call(fn, ...args) {
+  const job = queue.then(async () => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await syncIn(false);
+        const res = window[fn](...JSON.parse(JSON.stringify(args)));
+        await flush();
+        setSync('ok');
+        return res === undefined ? null : JSON.parse(JSON.stringify(res));
+      } catch (e) {
+        // Anything changed in memory but not saved must be re-read from Dropbox before trying again.
+        Object.values(book.sheets).forEach(s => { if (s.dirty || s.name === e.conflict) { s.rev = 'stale'; s.dirty = false; } });
+        if (e.conflict && attempt === 0) continue;
+        setSync('err', 'Error');
+        if (e.conflict) throw new Error('Your computer changed the same data at the same moment. Pull to refresh and try again.');
+        throw e;
+      }
+    }
+  });
+  queue = job.catch(() => {});
+  return job;
+}
+
+/* =====================================================================
+ * Screens
+ * ===================================================================== */
+const S = { boot: null, week: null, running: null, tab: 'timer', project: null, pick: { projectId: '', task: '', billable: true }, conflicts: [] };
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function hm(h) { const m = Math.round((+h || 0) * 60); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); }
+function hms(ms) { const s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 3600) + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+function t12(t) { if (!t) return ''; const [h, m] = t.split(':').map(Number); return ((h % 12) || 12) + ':' + String(m).padStart(2, '0') + (h < 12 ? 'a' : 'p'); }
+function dayName(ds) { const [y, m, d] = ds.split('-').map(Number); const dt = new Date(Date.UTC(y, m - 1, d)); return DOW[dt.getUTCDay()] + ' ' + MON[m - 1] + ' ' + d; }
+function proj(id) { return S.boot.projects.find(p => p.id === id); }
+function client(id) { return S.boot.clients.find(c => c.id === id); }
+let toastT;
+function toast(msg, err) { const t = $('toast'); t.textContent = msg; t.className = err ? 'err' : ''; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(() => t.style.display = 'none', err ? 6000 : 2500); }
+function setSync(state, txt) {
+  $('dot').className = 'dot' + (state === 'busy' ? ' busy' : state === 'err' ? ' err' : '');
+  $('syncTxt').textContent = txt || (state === 'ok' ? 'Synced' : '');
+}
+function fail(e) { toast(e.message || String(e), true); }
+
+/* ---- startup ---- */
+async function boot() {
+  if (!store.get('refresh') && !store.get('access')) return showSetup();
+  $('tabs').style.display = '';
+  $('app').innerHTML = '<div class="muted" style="text-align:center;padding:40px">Loading from Dropbox…</div>';
+  try {
+    await refresh(true);
+    render();
+  } catch (e) {
+    $('app').innerHTML = '<div class="card"><b>Couldn\'t load your data.</b><p class="muted">' + esc(e.message) + '</p><button class="btn ghost" onclick="boot()">Try again</button></div>';
+    setSync('err', 'Error');
+  }
+}
+async function refresh(first) {
+  S.boot = await call('getBootstrap');
+  const w = await call('getWeek', S.boot.thisWeek);
+  S.week = w;
+  S.running = S.boot.running;
+  if (first && !S.pick.projectId) {
+    const last = (w.entries.slice().reverse().find(e => e.endTS) || {});
+    S.pick.projectId = last.projectId && proj(last.projectId) && proj(last.projectId).active ? last.projectId : '';
+  }
+  if (S.conflicts && S.conflicts.length) toast('Dropbox has conflicted copies in your data folder. Check them on the computer.', true);
+}
+function render() {
+  $('tab-timer').classList.toggle('on', S.tab === 'timer');
+  $('tab-projects').classList.toggle('on', S.tab !== 'timer');
+  if (S.tab === 'timer') renderTimer();
+  else if (S.tab === 'project') renderProject();
+  else renderProjects();
+}
+function go(tab) { S.tab = tab; if (tab !== 'project') S.project = null; render(); window.scrollTo(0, 0); }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.boot) refresh().then(render).catch(fail); });
+setInterval(() => { if (document.visibilityState === 'visible' && S.boot && !document.querySelector('.sheet-bg.show') && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'INPUT') refresh().then(render).catch(() => {}); }, 60000);
+
+/* ---- setup screen ---- */
+function showSetup() {
+  $('tabs').style.display = 'none';
+  $('app').innerHTML = '<div class="setup card"><h2>Connect to Dropbox</h2>' +
+    '<p class="muted tiny">One-time setup. The phone reads and writes the same Fultz Ops data folder as your computers.</p>' +
+    '<label class="f">Dropbox app key</label><input id="appKey" autocapitalize="off" autocorrect="off" value="' + esc(store.get('appKey') || '') + '" placeholder="e.g. a1b2c3d4e5f6g7h">' +
+    '<label class="f">Data folder in Dropbox</label><input id="folderIn" autocapitalize="off" value="' + esc(folder()) + '">' +
+    '<button class="btn" style="margin-top:14px" onclick="startSignIn().catch(fail)">1. Sign in to Dropbox</button>' +
+    '<div id="codeStep" style="display:none"><p class="tiny muted" style="margin-top:14px">Dropbox opens in a new page. Tap <b>Allow</b>, copy the code it shows, come back here and paste it:</p>' +
+    '<input id="codeIn" autocapitalize="off" autocorrect="off" placeholder="Paste the code">' +
+    '<button class="btn go" style="margin-top:10px" onclick="finishSignIn().catch(fail)">2. Finish</button></div></div>';
+  if (store.get('verifier')) $('codeStep').style.display = '';
+}
+
+/* ---- settings ---- */
+function openSettings() {
+  openSheet('<h2>Settings<button class="btn link" onclick="closeSheet()">Done</button></h2>' +
+    '<label class="f">Data folder in Dropbox</label><input id="setFolder" value="' + esc(folder()) + '" autocapitalize="off">' +
+    '<button class="btn ghost" style="margin-top:10px" onclick="saveFolder()">Save folder &amp; reload</button>' +
+    '<button class="btn ghost" style="margin-top:10px" onclick="closeSheet();boot()">Reload from Dropbox now</button>' +
+    '<button class="btn ghost" style="margin-top:10px;color:var(--red)" onclick="signOut()">Sign out of Dropbox</button>' +
+    '<p class="tiny muted" style="margin-top:14px">Your data stays in Dropbox. Time reports, project files and project setup are on the computer app.</p>');
+}
+function saveFolder() { store.set('folder', normFolder($('setFolder').value)); Object.keys(book.sheets).forEach(k => delete book.sheets[k]); closeSheet(); boot(); }
+function signOut() { ['access', 'refresh', 'expires', 'verifier'].forEach(k => store.set(k, null)); Object.keys(book.sheets).forEach(k => delete book.sheets[k]); closeSheet(); boot(); }
+
+/* ---- sheets (bottom panels) ---- */
+function openSheet(html) { $('sheet').innerHTML = html; $('sheetBg').classList.add('show'); }
+function closeSheet() { $('sheetBg').classList.remove('show'); }
+
+/* ---- timer tab ---- */
+let tick;
+function activeProjects() {
+  const recent = [];
+  (S.week ? S.week.entries : []).slice().reverse().forEach(e => { if (recent.indexOf(e.projectId) < 0) recent.push(e.projectId); });
+  const act = S.boot.projects.filter(p => p.active);
+  const rec = recent.map(proj).filter(p => p && p.active);
+  return { rec: rec, rest: act.filter(p => rec.indexOf(p) < 0) };
+}
+function projectOptions(sel) {
+  const { rec, rest } = activeProjects();
+  const opt = p => '<option value="' + esc(p.id) + '"' + (p.id === sel ? ' selected' : '') + '>' + esc(p.id + ' · ' + p.name) + '</option>';
+  let extra = '';
+  if (sel && !rec.concat(rest).some(p => p.id === sel) && proj(sel)) extra = opt(proj(sel));
+  return '<option value="">Choose a project…</option>' + extra +
+    (rec.length ? '<optgroup label="This week">' + rec.map(opt).join('') + '</optgroup>' : '') +
+    '<optgroup label="Open projects">' + rest.map(opt).join('') + '</optgroup>';
+}
+function renderTimer() {
+  clearInterval(tick);
+  const r = S.running;
+  let top;
+  if (r) {
+    const p = proj(r.projectId);
+    top = '<div class="card"><div class="running-title">' + esc(r.projectId + ' · ' + (p ? p.name : '')) + '</div>' +
+      '<div class="running-sub">' + esc(r.task || 'No task') + (r.billable ? '' : ' · non-billable') + ' · since ' + t12(r.start) + '</div>' +
+      '<div class="clock" id="clock">0:00:00</div>' +
+      '<input id="runDesc" placeholder="What are you working on?" value="' + esc(r.description) + '" onchange="updRunning({description:this.value})">' +
+      '<button class="btn stop" style="margin-top:12px" onclick="uiStop()">Stop</button>' +
+      '<div style="text-align:center"><button class="btn link" onclick="changeRunning()">Change project/task</button> <button class="btn link" style="color:var(--red)" onclick="discard()">Discard</button></div></div>';
+  } else {
+    const p = proj(S.pick.projectId);
+    top = '<div class="card"><label class="f" style="margin-top:0">Project</label><select id="pickP" onchange="S.pick.projectId=this.value;S.pick.task=\'\';renderTimer()">' + projectOptions(S.pick.projectId) + '</select>' +
+      (p ? '<label class="f">Task</label><div class="chips">' + ['(none)'].concat(p.tasks).map(t => {
+        const v = t === '(none)' ? '' : t;
+        return '<button class="chip' + (S.pick.task === v ? ' on' : '') + '" onclick="S.pick.task=' + esc(JSON.stringify(v)) + ';renderTimer()">' + esc(t) + '</button>';
+      }).join('') + '</div>' : '') +
+      '<label class="f">Description</label><input id="pickD" placeholder="Optional" value="' + esc(S.pick.desc || '') + '" oninput="S.pick.desc=this.value">' +
+      '<div class="toggle"><span>Billable</span><label class="switch"><input type="checkbox" ' + (S.pick.billable ? 'checked' : '') + ' onchange="S.pick.billable=this.checked"><span></span></label></div>' +
+      '<button class="btn go" style="margin-top:14px" onclick="uiStart()">Start</button></div>';
+  }
+  const today = S.boot.today;
+  const done = S.week.entries.filter(e => e.endTS || !e.startTS);
+  const todayList = done.filter(e => e.date === today).reverse();
+  const weekTotal = done.reduce((s, e) => s + e.hours, 0), dayTotal = todayList.reduce((s, e) => s + e.hours, 0);
+  const earlier = done.filter(e => e.date !== today).reverse();
+  let list = '<div class="sum"><span class="muted">Today</span><b class="num">' + hm(dayTotal) + '</b></div>' +
+    '<div class="card">' + (todayList.length ? todayList.map(entryRow).join('') : '<div class="muted tiny">Nothing logged today yet.</div>') + '</div>' +
+    '<button class="btn ghost" onclick="editEntry(null)">+ Add time manually</button>' +
+    '<div class="sum" style="margin-top:16px"><span class="muted">This week · ' + esc(S.week.week.key) + '</span><b class="num">' + hm(weekTotal) + '</b></div>';
+  let lastDay = '';
+  if (earlier.length) {
+    list += '<div class="card">';
+    earlier.forEach(e => { if (e.date !== lastDay) { list += '<div class="day-h"><span>' + dayName(e.date) + '</span></div>'; lastDay = e.date; } list += entryRow(e); });
+    list += '</div>';
+  }
+  $('app').innerHTML = top + list;
+  if (r) { const upd = () => { const c = $('clock'); if (c) c.textContent = hms(Date.now() - Date.parse(r.startTS)); }; upd(); tick = setInterval(upd, 1000); }
+}
+function entryRow(e) {
+  const p = proj(e.projectId);
+  return '<div class="entry"><div class="main" onclick="editEntry(\'' + e.id + '\')"><div class="p"><span>' + esc(e.projectId) + '</span> ' + esc(p ? p.name : '') + '</div>' +
+    '<div class="s">' + esc((e.task || 'No task') + (e.description ? ' · ' + e.description : '')) + '</div>' +
+    '<div class="s">' + (e.start ? t12(e.start) + '–' + t12(e.end) : 'duration only') + (e.billable ? '' : ' · non-billable') + '</div></div>' +
+    '<div class="d">' + hm(e.hours) + '</div><button class="again" aria-label="Start again" onclick="again(\'' + e.id + '\')">▶</button></div>';
+}
+async function uiStart() {
+  if (!S.pick.projectId) return toast('Choose a project first.', true);
+  try {
+    const r = await call('startTimer', { projectId: S.pick.projectId, task: S.pick.task, description: S.pick.desc || '', billable: S.pick.billable });
+    S.pick.desc = '';
+    if (r.stopped) toast('Stopped ' + r.stopped.projectId + ' (' + hm(r.stopped.hours) + ')');
+    await refresh(); render();
+  } catch (e) { fail(e); }
+}
+async function uiStop() {
+  try { const r = await call('stopTimer'); if (r.stopped) toast('Logged ' + hm(r.stopped.hours) + ' to ' + r.stopped.projectId); await refresh(); render(); } catch (e) { fail(e); }
+}
+async function discard() {
+  if (!confirm('Discard the running timer? This time won\'t be saved.')) return;
+  try { await call('discardTimer'); await refresh(); render(); } catch (e) { fail(e); }
+}
+async function updRunning(patch) { try { S.running = await call('updateRunning', patch); toast('Updated'); } catch (e) { fail(e); } }
+async function again(id) {
+  const e = S.week.entries.find(x => x.id === id);
+  if (!e) return;
+  try { const r = await call('startTimer', { projectId: e.projectId, task: e.task, description: e.description, billable: e.billable }); if (r.stopped) toast('Stopped ' + r.stopped.projectId); await refresh(); S.tab = 'timer'; render(); window.scrollTo(0, 0); } catch (err) { fail(err); }
+}
+function changeRunning() {
+  const r = S.running;
+  openSheet('<h2>Running timer<button class="btn link" onclick="closeSheet()">Cancel</button></h2>' +
+    '<label class="f">Project</label><select id="crP" onchange="crTasks()">' + projectOptions(r.projectId) + '</select>' +
+    '<label class="f">Task</label><select id="crT"></select>' +
+    '<button class="btn" style="margin-top:14px" onclick="saveChangeRunning()">Save</button>');
+  crTasks(r.task);
+}
+function crTasks(keep) { const p = proj($('crP').value); const ts = p ? p.tasks.slice() : []; if (keep && ts.indexOf(keep) < 0) ts.push(keep); $('crT').innerHTML = '<option value="">No task</option>' + ts.map(t => '<option' + (t === keep ? ' selected' : '') + '>' + esc(t) + '</option>').join(''); }
+async function saveChangeRunning() {
+  const pid = $('crP').value; if (!pid) return toast('Choose a project.', true);
+  closeSheet();
+  try { const patch = { task: $('crT').value }; if (pid !== S.running.projectId) patch.projectId = pid; await call('updateRunning', patch); await refresh(); render(); } catch (e) { fail(e); }
+}
+
+/* ---- entry editor ---- */
+function editEntry(id) {
+  const e = id ? S.week.entries.find(x => x.id === id) : { projectId: S.pick.projectId, task: '', description: '', date: S.boot.today, start: '', end: '', hours: 0, billable: true };
+  S.editing = e;
+  openSheet('<h2>' + (id ? 'Edit time' : 'Add time') + '<button class="btn link" onclick="closeSheet()">Cancel</button></h2>' +
+    '<label class="f">Project</label><select id="eP" onchange="eTasks()">' + projectOptions(e.projectId) + '</select>' +
+    '<label class="f">Task</label><select id="eT"></select>' +
+    '<label class="f">Description</label><input id="eD" value="' + esc(e.description) + '">' +
+    '<label class="f">Date</label><input type="date" id="eDate" value="' + esc(e.date) + '">' +
+    '<div class="row"><div><label class="f">Start</label><input type="time" id="eS" value="' + esc(e.start) + '"></div><div><label class="f">End</label><input type="time" id="eE" value="' + esc(e.end) + '"></div></div>' +
+    '<label class="f">…or duration (no times)</label><input id="eH" inputmode="decimal" placeholder="1:30" value="' + (id && !e.start ? hm(e.hours) : '') + '">' +
+    '<div class="toggle"><span>Billable</span><label class="switch"><input type="checkbox" id="eB" ' + (e.billable !== false ? 'checked' : '') + '><span></span></label></div>' +
+    '<button class="btn" style="margin-top:14px" onclick="uiSaveEntry()">Save</button>' +
+    (id ? '<button class="btn ghost" style="margin-top:10px;color:var(--red)" onclick="delEntry()">Delete</button>' : ''));
+  eTasks(e.task);
+}
+function eTasks(keep) { const p = proj($('eP').value); const ts = p ? p.tasks.slice() : []; if (keep && ts.indexOf(keep) < 0) ts.push(keep); $('eT').innerHTML = '<option value="">No task</option>' + ts.map(t => '<option' + (t === keep ? ' selected' : '') + '>' + esc(t) + '</option>').join(''); }
+async function uiSaveEntry() {
+  const s = $('eS').value, en = $('eE').value;
+  const input = { id: S.editing.id, projectId: $('eP').value, task: $('eT').value, description: $('eD').value, date: $('eDate').value, start: s, end: en, hours: (s && en) ? '' : $('eH').value, billable: $('eB').checked };
+  try { const r = await call('saveEntry', input); closeSheet(); toast((S.editing.id ? 'Saved ' : 'Added ') + hm(r.hours)); await refresh(); render(); } catch (e) { fail(e); }
+}
+async function delEntry() {
+  if (!confirm('Delete this time entry?')) return;
+  try { await call('deleteEntry', S.editing.id); closeSheet(); toast('Deleted'); await refresh(); render(); } catch (e) { fail(e); }
+}
+
+/* ---- projects tab ---- */
+function renderProjects() {
+  const q = (S.q || '').toLowerCase();
+  const list = S.boot.projects.filter(p => p.active || S.showAll)
+    .filter(p => { const c = client(p.clientId); return !q || (p.id + ' ' + p.name + ' ' + (c ? c.name : '')).toLowerCase().includes(q); })
+    .sort((a, b) => a.id < b.id ? -1 : 1);
+  $('app').innerHTML = '<input placeholder="Search projects or clients" value="' + esc(S.q || '') + '" oninput="S.q=this.value;renderProjectsList()" style="margin-bottom:10px">' +
+    '<div class="card plist" id="plist"></div>' +
+    '<div style="text-align:center"><button class="btn link" onclick="S.showAll=!S.showAll;renderProjects()">' + (S.showAll ? 'Hide closed projects' : 'Show closed projects too') + '</button></div>';
+  renderProjectsList();
+}
+function renderProjectsList() {
+  const q = (S.q || '').toLowerCase();
+  const list = S.boot.projects.filter(p => p.active || S.showAll)
+    .filter(p => { const c = client(p.clientId); return !q || (p.id + ' ' + p.name + ' ' + (c ? c.name : '')).toLowerCase().includes(q); })
+    .sort((a, b) => a.id < b.id ? -1 : 1);
+  $('plist').innerHTML = list.map(p => {
+    const c = client(p.clientId);
+    return '<div class="pr" onclick="openProject(\'' + esc(p.id) + '\')"><span class="id">' + esc(p.id) + '</span>' +
+      '<div class="nm"><div>' + esc(p.name) + '</div><div class="tiny muted">' + esc((c ? c.name : '') + ' · ' + p.status) + '</div></div>' +
+      (p.itemsOpen ? '<span class="badge">' + p.itemsOpen + ' to do</span>' : '') + '<span class="chev">›</span></div>';
+  }).join('') || '<div class="muted tiny">No matching projects.</div>';
+}
+async function openProject(id) {
+  S.tab = 'project'; S.project = { id: id, detail: null };
+  render();
+  try { S.project.detail = await call('getProjectDetail', id); if (S.tab === 'project' && S.project && S.project.id === id) renderProject(); } catch (e) { fail(e); }
+}
+function renderProject() {
+  const id = S.project.id, d = S.project.detail, p = proj(id);
+  const c = p && client(p.clientId);
+  let html = '<div class="pp-h"><button class="back" onclick="go(\'projects\')">‹ Projects</button></div>' +
+    '<div class="pp-title">' + esc(id + ' · ' + (p ? p.name : '')) + '</div>' +
+    '<div class="muted tiny" style="margin-bottom:12px">' + esc((c ? c.name : '') + (p ? ' · ' + p.status : '')) +
+    (p && p.logged ? ' · ' + hm(p.logged) + (p.estHrs ? ' of ' + p.estHrs + ' h' : ' logged') : '') + '</div>' +
+    '<button class="btn go" style="margin-bottom:12px" onclick="startOn(\'' + esc(id) + '\')">▶ Start timer on this project</button>';
+  if (!d) { $('app').innerHTML = html + '<div class="muted" style="text-align:center;padding:20px">Loading…</div>'; return; }
+  const items = d.items, open = items.filter(i => !i.done), done = items.filter(i => i.done);
+  html += '<div class="card"><div style="display:flex;align-items:center"><b>Notes</b><span class="saved" id="nSaved"></span></div>' +
+    '<textarea id="notes" style="margin-top:8px" placeholder="Scope, dimensions, materials, client requests…" oninput="notesChanged()" onblur="saveNotes()">' + esc(d.project.notes) + '</textarea></div>' +
+    '<div class="card"><b>Action items</b><div style="margin-top:6px">' + (open.map(itemRow).join('') || '<div class="muted tiny" style="padding:6px 0">Nothing open.</div>') + '</div>' +
+    '<div class="row" style="margin-top:10px"><input id="newItem" placeholder="Add an action item" onkeydown="if(event.key===\'Enter\')uiAddItem()"><button class="btn" style="flex:0 0 70px;padding:11px;font-size:16px" onclick="uiAddItem()">Add</button></div>' +
+    (done.length ? '<details style="margin-top:10px"><summary class="muted tiny">' + done.length + ' done</summary>' + done.map(itemRow).join('') + '</details>' : '') + '</div>';
+  $('app').innerHTML = html;
+}
+function itemRow(it) {
+  const late = !it.done && it.due && it.due < S.boot.today;
+  return '<div class="ai' + (it.done ? ' done' : '') + '"><input type="checkbox" ' + (it.done ? 'checked' : '') + ' onchange="toggleItem(\'' + it.id + '\', this.checked)">' +
+    '<div class="tx">' + esc(it.text) + (it.due ? '<div class="due' + (late ? ' late' : '') + '">Due ' + dayName(it.due) + '</div>' : '') + '</div>' +
+    '<button class="x" aria-label="Delete" onclick="delItem(\'' + it.id + '\')">✕</button></div>';
+}
+async function startOn(id) { S.pick.projectId = id; S.pick.task = ''; S.tab = 'timer'; await uiStart(); }
+let notesT;
+function notesChanged() { $('nSaved').textContent = ''; clearTimeout(notesT); notesT = setTimeout(saveNotes, 1500); }
+async function saveNotes() {
+  clearTimeout(notesT);
+  const d = S.project && S.project.detail; if (!d || !$('notes')) return;
+  const v = $('notes').value;
+  if (v === d.project.notes) return;
+  d.project.notes = v;
+  try { await call('updateProject', S.project.id, { notes: v }); const s = $('nSaved'); if (s) s.textContent = '✓ Saved'; } catch (e) { fail(e); }
+}
+async function uiAddItem() {
+  const t = $('newItem').value.trim(); if (!t) return;
+  try { S.project.detail.items = await call('addItem', S.project.id, t, ''); renderProject(); refresh().catch(() => {}); } catch (e) { fail(e); }
+}
+async function toggleItem(id, done) { try { S.project.detail.items = await call('updateItem', id, { done: done }); renderProject(); } catch (e) { fail(e); } }
+async function delItem(id) { if (!confirm('Delete this action item?')) return; try { S.project.detail.items = await call('deleteItem', id); renderProject(); } catch (e) { fail(e); } }
+
+boot();
+</script>
+</body>
+</html>
