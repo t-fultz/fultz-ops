@@ -142,14 +142,16 @@ const TAB = {
   ENTRIES: 'Entries',
   SETTINGS: 'Settings',
   WORKFLOW: 'Workflow',
+  BLOCKS: 'Schedule Blocks',
+  PURCHASES: 'Hour Purchases',
   LOG: 'Log'
 };
 
 // New columns are only ever added at the END so older sheets keep working.
 const COLS = {};
-COLS[TAB.CLIENTS] = ['Client ID', 'Name', 'Contact', 'Email', 'Default Rate', 'Active', 'Notes', 'Client Status'];
+COLS[TAB.CLIENTS] = ['Client ID', 'Name', 'Contact', 'Email', 'Default Rate', 'Active', 'Notes', 'Client Status', 'Pool All Projects', 'Pool Start'];
 COLS[TAB.PROJECTS] = ['Project ID', 'Client ID', 'Name', 'Status', 'Active', 'Rate', 'Est Hrs', 'Deliverable', 'Notes', 'Created',
-  'Priority', 'Billing Model', 'Quoted Amount', 'Invoiced', 'Start', 'End', 'Prior Hours', 'Folder ID', 'Status Changed', 'Notion URL'];
+  'Priority', 'Billing Model', 'Quoted Amount', 'Invoiced', 'Start', 'End', 'Prior Hours', 'Folder ID', 'Status Changed', 'Notion URL', 'Uses Pool', 'CAD Folder'];
 COLS[TAB.TASKS] = ['Project ID', 'Task', 'Sort', 'Active'];
 COLS[TAB.TEMPLATES] = ['Template', 'Task', 'Sort'];
 COLS[TAB.ITEMS] = ['Item ID', 'Project ID', 'Text', 'Done', 'Due', 'Sort', 'Created', 'Completed'];
@@ -157,20 +159,24 @@ COLS[TAB.ENTRIES] = ['Entry ID', 'Date', 'Week', 'Client ID', 'Project ID', 'Tas
   'Start', 'End', 'Hours', 'Billable', 'Rate', 'Start TS', 'End TS', 'Created', 'Updated'];
 COLS[TAB.SETTINGS] = ['Setting', 'Value', 'Notes'];
 COLS[TAB.WORKFLOW] = ['Order', 'Status', 'Column', 'Next Button', 'Closes Project', 'Column Hidden'];
+COLS[TAB.PURCHASES] = ['Purchase ID', 'Client ID', 'Date', 'Hours', 'Rate', 'Amount', 'Reference', 'Notes', 'Created', 'Applies From'];
+COLS[TAB.BLOCKS] = ['Block ID', 'Project ID', 'Task', 'Item ID', 'Title', 'Date', 'Start', 'End', 'Notes', 'Logged Entry', 'Created', 'Updated'];
 COLS[TAB.LOG] = ['When', 'Who', 'Action', 'Details'];
 
 // Columns stored as plain text so Sheets never turns "006-004" or "08:30" into a date.
 const TEXT_COLS = {};
-TEXT_COLS[TAB.CLIENTS] = ['Client ID'];
+TEXT_COLS[TAB.CLIENTS] = ['Client ID', 'Pool Start'];
 TEXT_COLS[TAB.PROJECTS] = ['Project ID', 'Client ID', 'Start', 'End', 'Folder ID'];
 TEXT_COLS[TAB.TASKS] = ['Project ID'];
 TEXT_COLS[TAB.ITEMS] = ['Item ID', 'Project ID', 'Due'];
 TEXT_COLS[TAB.ENTRIES] = ['Entry ID', 'Date', 'Week', 'Client ID', 'Project ID', 'Start', 'End', 'Start TS', 'End TS'];
+TEXT_COLS[TAB.PURCHASES] = ['Purchase ID', 'Client ID', 'Date', 'Reference', 'Applies From'];
+TEXT_COLS[TAB.BLOCKS] = ['Block ID', 'Project ID', 'Item ID', 'Date', 'Start', 'End', 'Logged Entry'];
 
 // Default workflow. Your own version lives on the Workflow tab and is edited from Settings in the app.
 // The order a project normally moves through. "Next step" on the board follows this list.
 const FLOW = ['Not started', 'Preplanning', 'Contract Sent', 'Contract Signed', 'Deposit Invoice Sent',
-  "Deposit Recv'd", 'In progress', 'Deliverables Sent', 'Final Invoice Sent', "Payment Recv'd", 'Done'];
+  "Deposit Recv'd", 'In progress', 'Final Invoice Sent', "Payment Recv'd", 'Deliverables Sent', 'Done'];
 const PROJECT_STATUSES = FLOW.concat(['Defunct']);
 
 // Board columns. Each groups a few statuses so the board stays readable.
@@ -179,10 +185,17 @@ const STAGES = [
   { name: 'Contract', statuses: ['Contract Sent', 'Contract Signed'] },
   { name: 'Deposit', statuses: ['Deposit Invoice Sent', "Deposit Recv'd"] },
   { name: 'In Progress', statuses: ['In progress'] },
-  { name: 'Delivered / Billing', statuses: ['Deliverables Sent', 'Final Invoice Sent'] },
-  { name: 'Closed', statuses: ["Payment Recv'd", 'Done'] }
+  { name: 'Billing', statuses: ['Final Invoice Sent', "Payment Recv'd"] },
+  { name: 'Closed', statuses: ['Deliverables Sent', 'Done'] }
 ];
-const INACTIVE_STATUSES = ["Payment Recv'd", 'Done', 'Defunct'];
+// Deliverables go out after the final payment, so a project closes when deliverables are sent.
+const INACTIVE_STATUSES = ['Deliverables Sent', 'Done', 'Defunct'];
+
+// The first version's default workflow (deliverables before final invoice). Moved to the new order automatically if unchanged.
+const OLD_DEFAULT_WORKFLOW = JSON.stringify([['Not started', 'Lead', 1, 0, 0], ['Preplanning', 'Lead', 1, 0, 0], ['Contract Sent', 'Contract', 1, 0, 0],
+  ['Contract Signed', 'Contract', 1, 0, 0], ['Deposit Invoice Sent', 'Deposit', 1, 0, 0], ["Deposit Recv'd", 'Deposit', 1, 0, 0],
+  ['In progress', 'In Progress', 1, 0, 0], ['Deliverables Sent', 'Delivered / Billing', 1, 0, 0], ['Final Invoice Sent', 'Delivered / Billing', 1, 0, 0],
+  ["Payment Recv'd", 'Closed', 1, 1, 0], ['Done', 'Closed', 1, 1, 0], ['Defunct', 'Defunct', 0, 1, 1]]);
 
 function defaultWorkflowRows_() {
   const rows = [];
@@ -209,6 +222,10 @@ function workflow_() {
       });
   }
   if (!rows.length) rows = defaultWorkflowRows_();
+  else if (JSON.stringify(rows.map(function (r) { return [r.status, r.column, r.next ? 1 : 0, r.closes ? 1 : 0, r.hidden ? 1 : 0]; })) === OLD_DEFAULT_WORKFLOW) {
+    rows = defaultWorkflowRows_();
+    try { writeWorkflow_(rows); log_('Workflow', 'Moved Deliverables Sent after Payment Recv\'d (new default order)'); } catch (e) { /* read-only moment: use the new order anyway */ }
+  }
   const stages = [];
   rows.forEach(function (r) {
     let st = stages.filter(function (x) { return x.name === r.column; })[0];
@@ -241,6 +258,7 @@ const DEFAULT_SETTINGS = [
   ['Report Suffix', 'clockify', 'Last part of the file name: 2026w46_006-004_<suffix>.pdf'],
   ['Show Amounts On Reports', 'No', 'Yes = print rate and dollar totals on reports by default'],
   ['Rounding Minutes', 0, 'Round each entry on reports to the nearest N minutes (0 = exact time)'],
+  ['Show Hour Pool On Reports', 'Yes', 'Yes = show the client\'s hour-pool usage bar on reports for retainer projects'],
   ['Reports Folder ID', '', 'Fallback Drive folder for PDFs. Leave blank and the app creates "Fultz Time Reports".'],
   ['Save To Project Folder', 'Yes', 'Yes = save each PDF in the project\'s Drive folder when it can be found'],
   ['Client Projects Folder ID', '', 'Drive folder holding the "NNN - Client" folders. Needed for project files and folders.'],
@@ -292,7 +310,7 @@ function setup() {
   if (clients.getLastRow() < 2) {
     const rows = SEED_CLIENTS.map(function (c) { return [c[0], c[1], c[2], '', c[3], c[4], '', c[5]]; });
     clients.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
-  } else {
+  } else if (readTable_(TAB.CLIENTS).every(function (r) { return r['Client Status'] === ''; })) {
     fillBlanks_(TAB.CLIENTS, 'Client ID', function (id) {
       const c = SEED_CLIENTS.filter(function (x) { return x[0] === id; })[0];
       return c ? { 'Client Status': c[5] } : null;
@@ -307,7 +325,7 @@ function setup() {
       return [p[0], p[0].slice(0, 3), p[1], p[2], INACTIVE_STATUSES.indexOf(p[2]) < 0,
         p[3] || '', p[4] || '', p[5] || '', x.notes || '', now,
         x.priority || '', x.billing || (p[0] === '008-001' ? '' : 'Hourly'), x.quoted || '',
-        SEED_INVOICED.indexOf(p[0]) >= 0, x.start || '', x.end || x.start || '', x.prior || '', '', '',
+        SEED_INVOICED.indexOf(p[0]) >= 0, x.start || '', x.end || x.start || '', '', '', '',
         SEED_NOTION[p[0]] ? 'https://www.notion.so/' + SEED_NOTION[p[0]] : ''];
     });
     projects.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
@@ -318,8 +336,8 @@ function setup() {
       templateTasks_(templateForDeliverable_(p[5])).forEach(function (t, i) { tasks.push([p[0], t, i + 1, true]); });
     });
     if (tasks.length) book.getSheetByName(TAB.TASKS).getRange(2, 1, tasks.length, 4).setValues(tasks);
-  } else {
-    // Upgrading from the time-tracker-only version: fill new columns from the Notion copy.
+  } else if (readTable_(TAB.PROJECTS).every(function (r) { return r['Billing Model'] === '' && r['Notion URL'] === ''; })) {
+    // Upgrading from the time-tracker-only version: fill new columns from the Notion copy (only ever once).
     fillBlanks_(TAB.PROJECTS, 'Project ID', function (id) {
       const x = SEED_EXTRA[id] || {};
       const seed = SEED_PROJECTS.filter(function (p) { return p[0] === id; })[0];
@@ -327,7 +345,7 @@ function setup() {
       return {
         'Notes': x.notes || '', 'Priority': x.priority || '', 'Billing Model': x.billing || (id === '008-001' ? '' : 'Hourly'),
         'Quoted Amount': x.quoted || '', 'Invoiced': SEED_INVOICED.indexOf(id) >= 0 ? true : '',
-        'Start': x.start || '', 'End': x.end || x.start || '', 'Prior Hours': x.prior || '',
+        'Start': x.start || '', 'End': x.end || x.start || '',
         'Notion URL': SEED_NOTION[id] ? 'https://www.notion.so/' + SEED_NOTION[id] : ''
       };
     });
@@ -346,6 +364,7 @@ function setup() {
     if (rows.length) items.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
 
+  if (typeof ensurePdm_ === 'function') ensurePdm_();
   log_('Setup', 'Tabs checked and seeded');
   return 'Setup complete. Deploy > New deployment > Web app to get your link.';
 }
@@ -394,26 +413,44 @@ function templateTasks_(name) {
 /* API: startup data                                                  */
 /* ------------------------------------------------------------------ */
 
+/** Newer versions add columns at the end of some tabs; make sure the header row names them. */
+function ensureHeaders_() {
+  [TAB.CLIENTS, TAB.PROJECTS, TAB.PURCHASES].forEach(function (name) {
+    const sh = book_().getSheetByName(name);
+    if (!sh) return;
+    const cols = COLS[name];
+    const head = sh.getRange(1, 1, 1, cols.length).getValues()[0];
+    if (cols.some(function (c, i) { return head[i] !== c; })) {
+      sh.getRange(1, 1, 1, cols.length).setValues([cols]);
+      (TEXT_COLS[name] || []).forEach(function (col) { sh.getRange(1, cols.indexOf(col) + 1, sh.getMaxRows(), 1).setNumberFormat('@'); });
+    }
+  });
+}
+
 function getBootstrap() {
+  try { ensureHeaders_(); } catch (e) { /* read-only moment; try again next time */ }
   const settings = settings_();
   const entries = readTable_(TAB.ENTRIES).map(entryFromRow_);
-  const logged = {}, billed = {};
+  const logged = {}, billed = {}, lastByClient = {};
   entries.forEach(function (e) {
+    if (e.date && (!lastByClient[e.clientId] || e.date > lastByClient[e.clientId])) lastByClient[e.clientId] = e.date;
     if (e.startTS && !e.endTS) return;
     logged[e.projectId] = (logged[e.projectId] || 0) + e.hours;
     if (e.billable) billed[e.projectId] = (billed[e.projectId] || 0) + e.hours * (Number(e.rate) || 0);
   });
   const items = items_();
-  const clients = clients_();
+  const pools = poolSummaries_(entries);
+  const clients = clients_().map(function (c) { c.lastActivity = lastByClient[c.id] || ''; c.pool = pools[c.id] || null; return c; });
   const wf = workflow_();
   const statusUse = {};
   const projects = projects_().map(function (p) {
     statusUse[p.status] = (statusUse[p.status] || 0) + 1;
     p.tracked = round2_(logged[p.id] || 0);
-    p.logged = round2_(p.tracked + (Number(p.priorHours) || 0));
+    p.logged = p.tracked;
     const rate = rateFor_(p, clients);
-    p.billedEst = round2_((billed[p.id] || 0) + (Number(p.priorHours) || 0) * (Number(rate) || 0));
+    p.billedEst = round2_(billed[p.id] || 0);
     p.effectiveRate = rate;
+    p.drawsPool = drawsPool_(p, clients.filter(function (x) { return x.id === p.clientId; })[0]);
     const mine = items.filter(function (i) { return i.projectId === p.id; });
     p.itemsOpen = mine.filter(function (i) { return !i.done; }).length;
     p.itemsTotal = mine.length;
@@ -444,6 +481,7 @@ function getBootstrap() {
     hasProjectsFolder: !!String(settings['Client Projects Folder ID'] || '').trim(),
     settings: {
       showAmounts: yes_(settings['Show Amounts On Reports']),
+      showPool: settings['Show Hour Pool On Reports'] === undefined || settings['Show Hour Pool On Reports'] === '' ? true : yes_(settings['Show Hour Pool On Reports']),
       suffix: String(settings['Report Suffix'] || 'clockify'),
       rounding: Number(settings['Rounding Minutes']) || 0,
       defaultTemplate: String(settings['Default Template'] || 'General')
@@ -516,7 +554,11 @@ function updateRunning(input) {
 
 /** Create or update a finished entry. Give date + start + end, or date + hours. */
 function saveEntry(input) {
-  return withLock_(function () {
+  return withLock_(function () { return saveEntry_(input); });
+}
+
+function saveEntry_(input) {
+  {
     const p = project_(input.projectId);
     const date = String(input.date || '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Pick a date.');
@@ -557,7 +599,7 @@ function saveEntry(input) {
     else appendRow_(TAB.ENTRIES, entryToRow_(e));
     log_(input.id ? 'Edit entry' : 'Add entry', e.id + ' ' + e.projectId + ' ' + e.hours + 'h');
     return e;
-  });
+  }
 }
 
 function deleteEntry(id) {
@@ -591,6 +633,27 @@ function saveClient(input) {
   });
 }
 
+/** Quick edits from the client list: open/closed, contract status, rate, contact details. */
+function updateClient(id, patch) {
+  return withLock_(function () {
+    id = String(id || '');
+    const rowNum = findRowBy_(TAB.CLIENTS, 'Client ID', id);
+    if (!rowNum) throw new Error('Client ' + id + ' not found.');
+    const c = clients_().filter(function (x) { return x.id === id; })[0];
+    patch = patch || {};
+    if (patch.active !== undefined) c.active = !!patch.active;
+    if (patch.clientStatus !== undefined) c.clientStatus = String(patch.clientStatus || '');
+    if (patch.poolAll !== undefined) c.poolAll = !!patch.poolAll;
+    if (patch.poolStart !== undefined) c.poolStart = cleanDate_(patch.poolStart);
+    if (patch.rate !== undefined) c.rate = numOrBlank_(patch.rate);
+    ['name', 'contact', 'email', 'notes'].forEach(function (k) { if (patch[k] !== undefined) c[k] = String(patch[k] || '').trim(); });
+    if (!c.name) throw new Error('A client needs a name.');
+    writeRow_(TAB.CLIENTS, rowNum, [c.id, c.name, c.contact, c.email, c.rate, c.active, c.notes, c.clientStatus, c.poolAll, c.poolStart]);
+    if (patch.active !== undefined) log_(c.active ? 'Reopen client' : 'Close client', id + ' ' + c.name);
+    return clients_().filter(function (x) { return x.id === id; })[0];
+  });
+}
+
 /**
  * Create a project, or edit one. Only the fields you send are changed.
  * input.tasks (array of names), when sent, replaces the project's task list.
@@ -609,7 +672,7 @@ function saveProject(input) {
     } else {
       p = { id: id, clientId: clientId, name: '', status: 'Not started', active: true, rate: '', estHrs: '', deliverable: '',
         notes: '', created: new Date().toISOString(), priority: '', billingModel: 'Hourly', quoted: '', invoiced: false,
-        start: '', end: '', priorHours: '', folderId: '', statusChanged: '', notionUrl: '' };
+        start: '', end: '', priorHours: '', folderId: '', statusChanged: '', notionUrl: '', usesPool: '' };
     }
     applyProjectPatch_(p, input);
     if (!String(p.name).trim()) throw new Error('Enter a project name.');
@@ -630,8 +693,8 @@ function applyProjectPatch_(p, input) {
   if (input.rate !== undefined) p.rate = numOrBlank_(input.rate);
   if (input.estHrs !== undefined) p.estHrs = numOrBlank_(input.estHrs);
   if (input.quoted !== undefined) p.quoted = numOrBlank_(input.quoted);
-  if (input.priorHours !== undefined) p.priorHours = numOrBlank_(input.priorHours);
   if (input.invoiced !== undefined) p.invoiced = !!input.invoiced;
+  if (input.usesPool !== undefined) p.usesPool = input.usesPool === '' || input.usesPool === null ? '' : !!input.usesPool;
   if (input.active !== undefined) p.active = !!input.active;
   if (input.start !== undefined) p.start = cleanDate_(input.start);
   if (input.end !== undefined) p.end = cleanDate_(input.end);
@@ -690,7 +753,7 @@ function getProjectDetail(id) {
   const byWeek = {};
   entries.forEach(function (e) { byWeek[e.week] = (byWeek[e.week] || 0) + e.hours; });
   p.tracked = round2_(entries.reduce(function (s, e) { return s + e.hours; }, 0));
-  p.logged = round2_(p.tracked + (Number(p.priorHours) || 0));
+  p.logged = p.tracked;
   p.effectiveRate = rateFor_(p, clients);
   return clean_({
     project: p,
@@ -715,8 +778,10 @@ function addItem(projectId, text, due) {
     if (!t) throw new Error('Type the action item first.');
     const mine = items_().filter(function (i) { return i.projectId === projectId; });
     const sort = mine.reduce(function (m, i) { return Math.max(m, i.sort); }, 0) + 1;
-    const row = [newId_('A'), projectId, t, false, cleanDate_(due), sort, new Date(), ''];
+    const id = newId_('A');
+    const row = [id, projectId, t, false, cleanDate_(due), sort, new Date(), ''];
     appendRow_(TAB.ITEMS, row);
+    if (row[4]) placeByDate_(projectId, id);
     return items_().filter(function (i) { return i.projectId === projectId; });
   });
 }
@@ -727,12 +792,14 @@ function updateItem(id, patch) {
     if (!rowNum) throw new Error('That action item no longer exists.');
     const it = items_().filter(function (i) { return i.id === id; })[0];
     if (patch.text !== undefined) { const t = String(patch.text).trim(); if (t) it.text = t; }
+    const oldDue = it.due;
     if (patch.due !== undefined) it.due = cleanDate_(patch.due);
     if (patch.done !== undefined && !!patch.done !== it.done) {
       it.done = !!patch.done;
       it.completed = it.done ? todayStr_() : '';
     }
     writeRow_(TAB.ITEMS, rowNum, [it.id, it.projectId, it.text, it.done, it.due, it.sort, it.created || new Date(), it.completed]);
+    if (it.due && it.due !== oldDue) placeByDate_(it.projectId, it.id);
     return items_().filter(function (i) { return i.projectId === it.projectId; });
   });
 }
@@ -744,6 +811,35 @@ function deleteItem(id) {
     const it = items_().filter(function (i) { return i.id === id; })[0];
     sheet_(TAB.ITEMS).deleteRow(rowNum);
     return items_().filter(function (i) { return i.projectId === it.projectId; });
+  });
+}
+
+/**
+ * Moves ONE item to its place by due date, leaving every other item exactly where you put it.
+ * It goes after the last dated item due on or before its date (so it lands at the end of its own date),
+ * or before the first item due later. Only called when an item is added with a date or its date changes;
+ * nothing is ever re-sorted on load.
+ */
+function placeByDate_(projectId, id) {
+  const list = items_().filter(function (i) { return i.projectId === projectId; })
+    .sort(function (a, b) { return a.sort - b.sort; });
+  const me = list.filter(function (i) { return i.id === id; })[0];
+  if (!me || !me.due) return;
+  const rest = list.filter(function (i) { return i.id !== id; });
+  let at = -1;
+  rest.forEach(function (i, n) { if (i.due && i.due <= me.due) at = n + 1; });
+  if (at < 0) {
+    for (let n = 0; n < rest.length; n++) { if (rest[n].due && rest[n].due > me.due) { at = n; break; } }
+  }
+  if (at < 0) return;  // no other dated items: leave it where it is
+  rest.splice(at, 0, me);
+  const sh = sheet_(TAB.ITEMS);
+  const sortCol = COLS[TAB.ITEMS].indexOf('Sort') + 1;
+  const pos = {};
+  rest.forEach(function (i, n) { pos[i.id] = n + 1; });
+  readTable_(TAB.ITEMS).forEach(function (r) {
+    const k = String(r['Item ID']);
+    if (pos[k] && Number(r.Sort) !== pos[k]) sh.getRange(r._row, sortCol).setValue(pos[k]);
   });
 }
 
@@ -840,6 +936,357 @@ function projectFolder_(p, create) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Hour pools (prepaid blocks)                                        */
+/*                                                                    */
+/* Each purchase adds hours to the client's pool. Billable time on    */
+/* the client's Retainer projects draws it down, oldest block first.  */
+/* Time beyond what has been purchased is overage, billed separately; */
+/* a later purchase does NOT absorb earlier overage.                  */
+/* ------------------------------------------------------------------ */
+
+function purchases_() {
+  if (!book_().getSheetByName(TAB.PURCHASES)) return [];
+  return readTable_(TAB.PURCHASES).map(function (r) {
+    return {
+      id: String(r['Purchase ID'] || ''), clientId: text_(r['Client ID']), date: dateText_(r.Date),
+      hours: Number(r.Hours) || 0, rate: numOrBlank_(r.Rate), amount: numOrBlank_(r.Amount),
+      reference: String(r.Reference || ''), notes: String(r.Notes || ''),
+      appliesFrom: dateText_(r['Applies From']) || dateText_(r.Date), _row: r._row
+    };
+  }).filter(function (p) { return p.id && p.clientId && p.date; })
+    .sort(function (a, b) { return a.appliesFrom < b.appliesFrom ? -1 : a.appliesFrom > b.appliesFrom ? 1 : 0; });
+}
+
+/** Runs the ledger for one client. Only purchases and entries dated on or before upTo count (blank = everything). */
+/** Does this project's time draw from its client's prepaid hours? */
+function drawsPool_(p, c) {
+  if (p.usesPool === true || p.usesPool === false) return p.usesPool;   // set on the project
+  if (c && c.poolAll) return true;                                       // client: all projects
+  return p.billingModel === 'Retainer';                                  // default
+}
+
+/** The first day that counts against the pool: the client's chosen start, or the first purchase date. */
+function poolStart_(c, purchaseList) {
+  const first = purchaseList.filter(function (p) { return p.clientId === (c && c.id); })[0];
+  if (c && c.poolStart) return first && first.appliesFrom < c.poolStart ? first.appliesFrom : c.poolStart;
+  return first ? first.appliesFrom : '';
+}
+
+function poolLedger_(clientId, allEntries, projectList, purchaseList, upTo, clientList) {
+  const c = (clientList || clients_()).filter(function (x) { return x.id === clientId; })[0] || { id: clientId };
+  const retainer = {};
+  projectList.forEach(function (p) { if (p.clientId === clientId && drawsPool_(p, c)) retainer[p.id] = p; });
+  const from = poolStart_(c, purchaseList);
+  // A purchase's hours are available from its "Applies From" date, which can be earlier than the purchase (after-the-fact).
+  const buys = purchaseList.filter(function (p) { return p.clientId === clientId && (!upTo || p.appliesFrom <= upTo); });
+  const uses = allEntries.filter(function (e) {
+    return retainer[e.projectId] && e.billable && !(e.startTS && !e.endTS) && (!upTo || e.date <= upTo) && (!from || e.date >= from);
+  }).sort(entrySort_);
+  const events = [];
+  buys.forEach(function (b) { events.push({ kind: 'buy', key: b.appliesFrom + ' 00:00', b: b }); });
+  uses.forEach(function (e) { events.push({ kind: 'use', key: e.date + ' ' + (e.start || '23:59'), e: e }); });
+  events.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : (a.kind === 'buy' ? -1 : 1); });
+  let balance = 0, purchased = 0, used = 0, overage = 0;
+  const perEntry = {};
+  events.forEach(function (ev) {
+    if (ev.kind === 'buy') { purchased += ev.b.hours; balance += ev.b.hours; return; }
+    const h = round4_(ev.e.hours);
+    const fromPool = Math.min(h, Math.max(0, balance));
+    balance = round4_(balance - fromPool);
+    used += fromPool; overage += h - fromPool;
+    perEntry[ev.e.id] = { pool: round4_(fromPool), over: round4_(h - fromPool) };
+  });
+  return {
+    purchased: round2_(purchased), used: round2_(used), remaining: round2_(balance), overage: round2_(overage),
+    perEntry: perEntry, purchases: buys, uses: uses, retainerProjects: Object.keys(retainer), from: from
+  };
+}
+
+function poolSummaries_(entries) {
+  const buys = purchases_();
+  if (!buys.length) return {};
+  const projects = projects_();
+  const clients = clients_();
+  const out = {};
+  buys.map(function (b) { return b.clientId; }).filter(function (c, i, a) { return a.indexOf(c) === i; }).forEach(function (cid) {
+    const l = poolLedger_(cid, entries, projects, buys, '', clients);
+    out[cid] = { purchased: l.purchased, used: l.used, remaining: l.remaining, overage: l.overage, projectIds: l.retainerProjects, from: l.from };
+  });
+  return out;
+}
+
+/** Full pool view for one client: summary, purchases and a week-by-week ledger with running balance. */
+function getPool(clientId) {
+  clientId = String(clientId || '');
+  const c = clients_().filter(function (x) { return x.id === clientId; })[0];
+  if (!c) throw new Error('Client ' + clientId + ' not found.');
+  const entries = readTable_(TAB.ENTRIES).map(entryFromRow_);
+  const projects = projects_();
+  const buys = purchases_();
+  const l = poolLedger_(clientId, entries, projects, buys, '');
+  // Ledger rows in true order: purchases, plus usage grouped by week and project between purchases.
+  const rows = [];
+  const events = [];
+  l.purchases.forEach(function (b) { events.push({ kind: 'buy', key: b.appliesFrom + ' 00:00', b: b }); });
+  l.uses.forEach(function (e) { events.push({ kind: 'use', key: e.date + ' ' + (e.start || '23:59'), e: e }); });
+  events.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : (a.kind === 'buy' ? -1 : 1); });
+  let segment = 0;
+  const open = {};
+  events.forEach(function (ev) {
+    if (ev.kind === 'buy') {
+      segment++;
+      const b = ev.b;
+      rows.push({ date: b.appliesFrom, kind: 'buy', add: b.hours,
+        text: 'Purchased ' + b.hours + ' h' + (b.appliesFrom !== b.date ? ' on ' + longDay_(b.date) + ' (covers from ' + longDay_(b.appliesFrom) + ')' : '') +
+          (b.reference ? ' · ' + b.reference : '') + (b.notes ? ' · ' + b.notes : '') });
+      return;
+    }
+    const e = ev.e, k = segment + '|' + e.week + '|' + e.projectId;
+    const pe = l.perEntry[e.id] || { pool: 0, over: 0 };
+    if (!open[k]) {
+      const p = projects.filter(function (x) { return x.id === e.projectId; })[0];
+      open[k] = { date: e.date, kind: 'use', text: e.week + ' · ' + e.projectId + (p ? ' ' + p.name : ''), use: 0, over: 0 };
+      rows.push(open[k]);
+    }
+    open[k].use = round2_(open[k].use + pe.pool); open[k].over = round2_(open[k].over + pe.over);
+    if (e.date > open[k].date) open[k].date = e.date;
+  });
+  let bal = 0;
+  rows.forEach(function (r) { bal = round2_(bal + (r.add || 0) - (r.use || 0)); r.balance = bal; });
+  return clean_({
+    client: c,
+    summary: { purchased: l.purchased, used: l.used, remaining: l.remaining, overage: l.overage },
+    retainerProjects: projects.filter(function (p) { return p.clientId === clientId && drawsPool_(p, c); })
+      .map(function (p) { return { id: p.id, name: p.name, status: p.status }; }),
+    projects: projects.filter(function (p) { return p.clientId === clientId; }).map(function (p) {
+      return { id: p.id, name: p.name, status: p.status, billingModel: p.billingModel, usesPool: p.usesPool, draws: drawsPool_(p, c) };
+    }),
+    from: l.from, poolAll: c.poolAll, poolStart: c.poolStart,
+    purchases: l.purchases.map(function (b) { const o = Object.assign({}, b); delete o._row; return o; }).reverse(),
+    ledger: rows.reverse(),
+    today: todayStr_()
+  });
+}
+
+/** Choose which projects draw from a client's prepaid hours and when counting starts.
+ *  scope: { poolAll: bool, poolStart: 'yyyy-mm-dd' or '', projects: { '006-004': true|false|'' } } */
+function setPoolScope(clientId, scope) {
+  return withLock_(function () {
+    clientId = String(clientId || '');
+    const rowNum = findRowBy_(TAB.CLIENTS, 'Client ID', clientId);
+    if (!rowNum) throw new Error('Client ' + clientId + ' not found.');
+    const c = clients_().filter(function (x) { return x.id === clientId; })[0];
+    if (scope.poolAll !== undefined) c.poolAll = !!scope.poolAll;
+    if (scope.poolStart !== undefined) c.poolStart = cleanDate_(scope.poolStart);
+    writeRow_(TAB.CLIENTS, rowNum, [c.id, c.name, c.contact, c.email, c.rate, c.active, c.notes, c.clientStatus, c.poolAll, c.poolStart]);
+    Object.keys(scope.projects || {}).forEach(function (pid) {
+      const r = findRowBy_(TAB.PROJECTS, 'Project ID', pid);
+      if (!r || pid.slice(0, 3) !== clientId) return;
+      const p = project_(pid);
+      const v = scope.projects[pid];
+      p.usesPool = v === '' || v === null ? '' : !!v;
+      writeRow_(TAB.PROJECTS, r, projectToRow_(p));
+    });
+    log_('Pool scope', clientId + (c.poolAll ? ' all projects' : ' selected projects') + (c.poolStart ? ' from ' + c.poolStart : ''));
+    return true;
+  });
+}
+
+function savePurchase(input) {
+  return withLock_(function () {
+    const cid = String(input.clientId || '');
+    if (!clients_().some(function (c) { return c.id === cid; })) throw new Error('Pick a client.');
+    const date = cleanDate_(input.date);
+    if (!date) throw new Error('Enter the purchase date.');
+    const hours = parseDuration_(input.hours);
+    if (!(hours > 0)) throw new Error('Enter how many hours were purchased.');
+    const rate = numOrBlank_(input.rate);
+    let amount = numOrBlank_(input.amount);
+    if (amount === '' && rate !== '') amount = round2_(hours * rate);
+    if (!book_().getSheetByName(TAB.PURCHASES)) ensureTab_(book_(), TAB.PURCHASES);
+    let from = cleanDate_(input.appliesFrom);
+    if (from && from > date) throw new Error('"Covers time from" can\'t be after the purchase date.');
+    const row = [input.id || newId_('H'), cid, date, round4_(hours), rate, amount, String(input.reference || '').trim(), String(input.notes || '').trim(), new Date(), from || date];
+    if (input.id) {
+      const found = purchases_().filter(function (p) { return p.id === input.id; })[0];
+      if (!found) throw new Error('That purchase no longer exists.');
+      writeRow_(TAB.PURCHASES, found._row, row);
+    } else {
+      appendRow_(TAB.PURCHASES, row);
+    }
+    log_(input.id ? 'Edit purchase' : 'Hour purchase', cid + ' ' + hours + 'h ' + date + (row[6] ? ' ' + row[6] : ''));
+    return true;
+  });
+}
+
+function deletePurchase(id) {
+  return withLock_(function () {
+    const p = purchases_().filter(function (x) { return x.id === id; })[0];
+    if (!p) return false;
+    sheet_(TAB.PURCHASES).deleteRow(p._row);
+    log_('Delete purchase', p.clientId + ' ' + p.hours + 'h ' + p.date);
+    return true;
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* API: deleting projects and clients (guarded)                       */
+/* ------------------------------------------------------------------ */
+
+/** What deleting would remove, so the app can show it before you confirm. */
+function getDeleteInfo(kind, id) {
+  id = String(id || '');
+  if (kind === 'client') {
+    const c = clients_().filter(function (x) { return x.id === id; })[0];
+    if (!c) throw new Error('Client ' + id + ' not found.');
+    const ps = projects_().filter(function (p) { return p.clientId === id; });
+    return { kind: kind, id: id, name: c.name, projects: ps.map(function (p) { return p.id + ' ' + p.name; }) };
+  }
+  const p = project_(id);
+  const entries = readTable_(TAB.ENTRIES).map(entryFromRow_).filter(function (e) { return e.projectId === id; });
+  return {
+    kind: 'project', id: id, name: p.name,
+    entries: entries.length, hours: round2_(entries.reduce(function (s, e) { return s + e.hours; }, 0)),
+    running: entries.some(function (e) { return e.startTS && !e.endTS; }),
+    tasks: p.tasks.length,
+    items: items_().filter(function (i) { return i.projectId === id; }).length,
+    blocks: blocks_().filter(function (b) { return b.projectId === id; }).length
+  };
+}
+
+function deleteRowsWhere_(name, col, value) {
+  if (!book_().getSheetByName(name)) return 0;
+  const sh = sheet_(name);
+  const rows = readTable_(name).filter(function (r) { return text_(r[col]) === value; });
+  rows.sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { sh.deleteRow(r._row); });
+  return rows.length;
+}
+
+/** Permanently delete a project. confirmText must be the project number; time entries are only deleted if deleteEntries is true. */
+function deleteProject(id, confirmText, deleteEntries) {
+  return withLock_(function () {
+    id = String(id || '');
+    if (String(confirmText || '').trim() !== id) throw new Error('Type ' + id + ' exactly to confirm.');
+    const info = getDeleteInfo('project', id);
+    if (info.running) throw new Error('A timer is running on ' + id + '. Stop or discard it first.');
+    if (info.entries && !deleteEntries) throw new Error(id + ' has ' + info.entries + ' time entries. Tick the box to delete them too, or keep the project.');
+    const removed = {
+      entries: info.entries ? deleteRowsWhere_(TAB.ENTRIES, 'Project ID', id) : 0,
+      tasks: deleteRowsWhere_(TAB.TASKS, 'Project ID', id),
+      items: deleteRowsWhere_(TAB.ITEMS, 'Project ID', id),
+      blocks: deleteRowsWhere_(TAB.BLOCKS, 'Project ID', id)
+    };
+    deleteRowsWhere_(TAB.PROJECTS, 'Project ID', id);
+    log_('Delete project', id + ' ' + info.name + ' (' + removed.entries + ' entries, ' + info.hours + 'h; ' + removed.items + ' action items; ' + removed.blocks + ' blocks)');
+    return removed;
+  });
+}
+
+/** Permanently delete a client. Only allowed once it has no projects. */
+function deleteClient(id, confirmText) {
+  return withLock_(function () {
+    id = String(id || '');
+    if (String(confirmText || '').trim() !== id) throw new Error('Type ' + id + ' exactly to confirm.');
+    const info = getDeleteInfo('client', id);
+    if (info.projects.length) throw new Error('Client ' + id + ' still has ' + info.projects.length + ' project(s). Delete those first.');
+    deleteRowsWhere_(TAB.CLIENTS, 'Client ID', id);
+    log_('Delete client', id + ' ' + info.name);
+    return true;
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* API: calendar (planned time blocks + logged time)                  */
+/* ------------------------------------------------------------------ */
+
+function blocks_() {
+  if (!book_().getSheetByName(TAB.BLOCKS)) return [];
+  return readTable_(TAB.BLOCKS).map(function (r) {
+    return {
+      id: String(r['Block ID'] || ''), projectId: text_(r['Project ID']), task: String(r.Task || ''),
+      itemId: String(r['Item ID'] || ''), title: String(r.Title || ''), date: dateText_(r.Date),
+      start: timeText_(r.Start), end: timeText_(r.End), notes: String(r.Notes || ''),
+      loggedEntry: String(r['Logged Entry'] || ''), _row: r._row
+    };
+  }).filter(function (b) { return b.id && b.date; });
+}
+
+function blockToRow_(b) {
+  return [b.id, b.projectId, b.task, b.itemId, b.title, b.date, b.start, b.end, b.notes, b.loggedEntry || '',
+    b.created || new Date(), new Date()];
+}
+
+/** Everything the calendar needs for the dates start..end (yyyy-MM-dd, inclusive). */
+function getCalendar(start, end) {
+  start = cleanDate_(start); end = cleanDate_(end);
+  if (!start || !end) throw new Error('Bad date range.');
+  const all = readTable_(TAB.ENTRIES).map(entryFromRow_);
+  const entries = all.filter(function (e) { return e.date >= start && e.date <= end; }).sort(entrySort_);
+  const loggedIds = {};
+  all.forEach(function (e) { loggedIds[e.id] = true; });
+  const blocks = blocks_().filter(function (b) { return b.date >= start && b.date <= end; })
+    .map(function (b) { if (b.loggedEntry && !loggedIds[b.loggedEntry]) b.loggedEntry = ''; return b; })
+    .sort(function (a, b) { return a.date + a.start < b.date + b.start ? -1 : 1; });
+  const items = items_().filter(function (i) { return !i.done; }).map(function (i) { return { id: i.id, projectId: i.projectId, text: i.text, due: i.due }; });
+  return clean_({ start: start, end: end, blocks: blocks, entries: entries, items: items, today: todayStr_(), now: fmt_(new Date(), 'HH:mm') });
+}
+
+/** Create or update a planned time block. */
+function saveBlock(input) {
+  return withLock_(function () {
+    const date = cleanDate_(input.date);
+    const start = cleanTime_(input.start), end = cleanTime_(input.end);
+    if (!date) throw new Error('Pick a date.');
+    if (!start || !end) throw new Error('Enter a start and end time.');
+    if (toMin_(end) <= toMin_(start)) throw new Error('The block has to end after it starts (same day).');
+    const pid = String(input.projectId || '').trim();
+    if (pid) project_(pid);
+    const title = String(input.title || '').trim();
+    if (!pid && !title) throw new Error('Pick a project or give the block a title.');
+    if (!book_().getSheetByName(TAB.BLOCKS)) ensureTab_(book_(), TAB.BLOCKS);
+    let b, row = 0;
+    if (input.id) {
+      b = blocks_().filter(function (x) { return x.id === input.id; })[0];
+      if (!b) throw new Error('That block no longer exists. Refresh and try again.');
+      row = b._row;
+    } else {
+      b = { id: newId_('B'), created: new Date(), loggedEntry: '' };
+    }
+    b.projectId = pid; b.task = String(input.task || ''); b.itemId = String(input.itemId || '');
+    b.title = title; b.date = date; b.start = start; b.end = end; b.notes = String(input.notes || '');
+    if (row) writeRow_(TAB.BLOCKS, row, blockToRow_(b));
+    else appendRow_(TAB.BLOCKS, blockToRow_(b));
+    log_(input.id ? 'Edit block' : 'Add block', b.id + ' ' + (pid || title) + ' ' + date + ' ' + start + '-' + end);
+    delete b._row;
+    return b;
+  });
+}
+
+function deleteBlock(id) {
+  return withLock_(function () {
+    const b = blocks_().filter(function (x) { return x.id === id; })[0];
+    if (!b) return false;
+    sheet_(TAB.BLOCKS).deleteRow(b._row);
+    log_('Delete block', id);
+    return true;
+  });
+}
+
+/** Turn a planned block into a logged time entry (for when the plan is what actually happened). */
+function logBlock(id) {
+  return withLock_(function () {
+    const b = blocks_().filter(function (x) { return x.id === id; })[0];
+    if (!b) throw new Error('That block no longer exists.');
+    if (!b.projectId) throw new Error('Pick a project for this block first; time is logged against a project.');
+    if (b.loggedEntry && findEntry_(b.loggedEntry)) throw new Error('This block is already logged as time.');
+    const e = saveEntry_({ projectId: b.projectId, task: b.task, description: b.title || b.notes, date: b.date, start: b.start, end: b.end, billable: true });
+    b.loggedEntry = e.id;
+    writeRow_(TAB.BLOCKS, b._row, blockToRow_(b));
+    return e;
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* API: workflow, templates and settings editors                     */
 /* ------------------------------------------------------------------ */
 
@@ -929,7 +1376,7 @@ function saveTemplates(templates, defaultName) {
   });
 }
 
-const EDITABLE_SETTINGS = ['Company Name', 'Company Contact', 'Report Title', 'Report Suffix', 'Show Amounts On Reports',
+const EDITABLE_SETTINGS = ['Company Name', 'Company Contact', 'Report Title', 'Report Suffix', 'Show Amounts On Reports', 'Show Hour Pool On Reports',
   'Rounding Minutes', 'Save To Project Folder', 'Client Projects Folder ID', 'Reports Folder ID'];
 
 function editableSettings_(settings) {
@@ -944,7 +1391,7 @@ function saveSettings(values) {
       if (EDITABLE_SETTINGS.indexOf(k) < 0) return;
       let v = values[k];
       if (k === 'Rounding Minutes') { v = Math.max(0, Math.round(Number(v) || 0)); }
-      else if (k === 'Show Amounts On Reports' || k === 'Save To Project Folder') { v = v === true || yes_(v) ? 'Yes' : 'No'; }
+      else if (k === 'Show Amounts On Reports' || k === 'Save To Project Folder' || k === 'Show Hour Pool On Reports') { v = v === true || yes_(v) ? 'Yes' : 'No'; }
       else if (/Folder ID$/.test(k)) {
         // Accept a pasted Drive link as well as a bare ID.
         const m = /drive\.google\.com\/.*folders\/([A-Za-z0-9_-]+)/.exec(String(v || '')) || /drive\.google\.com\/.*[?&]id=([A-Za-z0-9_-]+)/.exec(String(v || ''));
@@ -987,7 +1434,7 @@ function makeAllReports(input) {
   });
   return Object.keys(ids).sort().map(function (pid) {
     try {
-      return makeReport({ week: wk.key, projectId: pid, showAmounts: input.showAmounts });
+      return makeReport({ week: wk.key, projectId: pid, showAmounts: input.showAmounts, showPool: input.showPool });
     } catch (err) {
       return { name: pid, error: err.message };
     }
@@ -1006,6 +1453,7 @@ function reportData_(weekKey, projectId, opts) {
   const client = clients_().filter(function (c) { return c.id === project.clientId; })[0] || { id: project.clientId, name: '' };
   const rounding = Number(settings['Rounding Minutes']) || 0;
   const showAmounts = opts && opts.showAmounts !== undefined ? !!opts.showAmounts : yes_(settings['Show Amounts On Reports']);
+  const showPool = opts && opts.showPool !== undefined ? !!opts.showPool : !(settings['Show Hour Pool On Reports'] !== undefined && settings['Show Hour Pool On Reports'] !== '' && !yes_(settings['Show Hour Pool On Reports']));
   const entries = readTable_(TAB.ENTRIES).map(entryFromRow_)
     .filter(function (e) { return e.week === wk.key && e.projectId === project.id && (e.endTS || !e.startTS); })
     .sort(entrySort_)
@@ -1028,7 +1476,19 @@ function reportData_(weekKey, projectId, opts) {
   const totalAmount = round2_(entries.reduce(function (s, e) { return s + e.amount; }, 0));
   const rates = entries.filter(function (e) { return e.billable; }).map(function (e) { return Number(e.rate) || 0; })
     .filter(function (r, i, a) { return a.indexOf(r) === i; });
+  let pool = null;
+  if (showPool && drawsPool_(project, client)) {
+    const all = readTable_(TAB.ENTRIES).map(entryFromRow_);
+    const l = poolLedger_(client.id, all, projects_(), purchases_(), wk.end);
+    if (l.purchased > 0) {
+      let weekPool = 0, weekOver = 0;
+      entries.forEach(function (e) { const pe = l.perEntry[e.id]; if (pe) { weekPool += pe.pool; weekOver += pe.over; } });
+      pool = { purchased: l.purchased, used: l.used, remaining: l.remaining, overage: l.overage,
+        weekPool: round2_(weekPool), weekOver: round2_(weekOver), asOf: wk.end };
+    }
+  }
   return {
+    pool: pool,
     company: String(settings['Company Name'] || ''),
     contact: String(settings['Company Contact'] || ''),
     title: String(settings['Report Title'] || 'Time Report'),
@@ -1107,6 +1567,7 @@ function reportHtml_(d) {
     meta('Total time', '<b>' + hm_(d.totalHours) + '</b> (' + d.totalHours.toFixed(2) + ' hrs)' +
       (amtCols ? ' &nbsp; <b>' + money_(d.totalAmount) + '</b>' : '')) +
     '</table>' +
+    poolHtml_(d.pool) +
     '<div style="font-size:10.5pt;font-weight:bold;color:#1f3a5f;margin:4px 0;">Summary by task</div>' +
     '<table style="width:70%;border-collapse:collapse;margin-bottom:16px;">' +
     '<tr><th style="' + head + '">Task</th><th style="' + head + right + '">Time</th><th style="' + head + right + '">Hours</th><th style="' + head + right + '">Share</th></tr>' +
@@ -1120,6 +1581,31 @@ function reportHtml_(d) {
     (notes.length ? '<div style="font-size:8.5pt;color:#5b6573;margin-top:10px;">' + e(notes.join(' ')) + '</div>' : '') +
     '<div style="font-size:8pt;color:#8a929c;margin-top:18px;">Generated ' + e(d.generated) + ' &middot; ' + e(d.fileName) + '</div>' +
     '</body></html>';
+}
+
+/** Hour-pool usage bar for reports. Built from table cells so both PDF engines draw it the same way. */
+function poolHtml_(pool) {
+  if (!pool) return '';
+  const total = Math.max(pool.purchased, pool.used, 0.01);
+  const before = Math.max(0, pool.used - pool.weekPool);
+  const pct = function (h) { return Math.max(0, Math.round(h / total * 1000) / 10); };
+  const seg = function (h, color) { return h > 0.004 ? '<td width="' + pct(h) + '%" style="background-color:' + color + ';height:16px;padding:0;font-size:1pt;">&nbsp;</td>' : ''; };
+  const bar = '<table style="width:100%;border-collapse:collapse;border:1px solid #9aa5b3;"><tr>' +
+    seg(before, '#1f3a5f') + seg(pool.weekPool, '#d69e2e') + seg(pool.remaining, '#e2e8f0') + '</tr></table>';
+  const key = function (color, label, h) {
+    return '<td width="12" style="background-color:' + color + ';border:1px solid #9aa5b3;font-size:6pt;">&nbsp;</td>' +
+      '<td style="font-size:8.5pt;padding:2px 16px 2px 6px;white-space:nowrap;">' + label + ': <b>' + h.toFixed(2) + ' h</b></td>';
+  };
+  return '<div style="font-size:10.5pt;font-weight:bold;color:#1f3a5f;margin:4px 0;">Prepaid hours</div>' +
+    '<div style="font-size:9pt;color:#5b6573;margin-bottom:4px;">' + pool.used.toFixed(2) + ' of ' + pool.purchased.toFixed(2) +
+    ' purchased hours used as of ' + esc_(longDay_(pool.asOf)) + ', ' + pool.asOf.slice(0, 4) + '</div>' +
+    bar +
+    '<table style="border-collapse:collapse;margin:6px 0 4px 0;"><tr>' +
+    key('#1f3a5f', 'Used before this week', before) + key('#d69e2e', 'Used this week', pool.weekPool) + key('#e2e8f0', 'Remaining', pool.remaining) +
+    '</tr></table>' +
+    (pool.weekOver > 0.004 ? '<div style="font-size:9pt;color:#c53030;margin-bottom:2px;">' + pool.weekOver.toFixed(2) +
+      ' h this week went beyond the prepaid hours and is billed separately.</div>' : '') +
+    '<div style="margin-bottom:14px;"></div>';
 }
 
 function reportFolder_(project) {
@@ -1236,7 +1722,8 @@ function clients_() {
     return {
       id: text_(r['Client ID']), name: String(r.Name || ''), contact: String(r.Contact || ''),
       email: String(r.Email || ''), rate: r['Default Rate'] === '' ? '' : Number(r['Default Rate']),
-      active: bool_(r.Active), notes: String(r.Notes || ''), clientStatus: String(r['Client Status'] || '')
+      active: bool_(r.Active), notes: String(r.Notes || ''), clientStatus: String(r['Client Status'] || ''),
+      poolAll: bool_(r['Pool All Projects']), poolStart: dateText_(r['Pool Start'])
     };
   }).filter(function (c) { return c.id; }).sort(function (a, b) { return a.id < b.id ? -1 : 1; });
 }
@@ -1263,6 +1750,7 @@ function projects_() {
       start: dateText_(r.Start), end: dateText_(r.End), priorHours: numOrBlank_(r['Prior Hours']),
       folderId: String(r['Folder ID'] || ''), statusChanged: dateText_(r['Status Changed']),
       notionUrl: String(r['Notion URL'] || ''),
+      usesPool: r['Uses Pool'] === '' ? '' : bool_(r['Uses Pool']),
       tasks: tasks[id] || []
     };
   }).filter(function (p) { return p.id; }).sort(function (a, b) { return a.id < b.id ? -1 : 1; });
@@ -1271,7 +1759,7 @@ function projects_() {
 function projectToRow_(p) {
   return [p.id, p.clientId, p.name, p.status, p.active, p.rate, p.estHrs, p.deliverable, p.notes,
     p.created ? new Date(p.created) : new Date(), p.priority, p.billingModel, p.quoted, p.invoiced,
-    p.start, p.end, p.priorHours, p.folderId, p.statusChanged, p.notionUrl];
+    p.start, p.end, p.priorHours, p.folderId, p.statusChanged, p.notionUrl, p.usesPool === undefined ? '' : p.usesPool];
 }
 
 function project_(id) {
