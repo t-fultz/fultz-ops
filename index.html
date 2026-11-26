@@ -1412,9 +1412,54 @@ function saveSettings(values) {
 /* PDF reports                                                        */
 /* ------------------------------------------------------------------ */
 
+/* Report styles: week, mtd (month to date), month (whole month), project (project total). */
+const REPORT_STYLES_ = { week: 'Weekly', mtd: 'Month to date', month: 'Full month', project: 'Project total' };
+const MONTH_NAMES_ = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function monthEnd_(ym) {
+  const p = ym.split('-').map(Number);
+  return ym + '-' + pad2_(new Date(Date.UTC(p[0], p[1], 0)).getUTCDate());
+}
+
+/** Works out the date range a report covers. input: { style, week, month: 'yyyy-mm', projectId } */
+function reportPeriod_(input, projectEntries) {
+  const style = REPORT_STYLES_[input.style] ? input.style : 'week';
+  const today = todayStr_();
+  if (style === 'week') {
+    const wk = weekInfo_(input.week);
+    return { style: style, start: wk.start, end: wk.end, fileKey: wk.key, sub: wk.key, metaLabel: 'Week',
+      label: wk.key + ': ' + wk.label, noun: 'this week', week: wk };
+  }
+  if (style === 'mtd' || style === 'month') {
+    let ym = /^\d{4}-\d{2}$/.test(String(input.month || '')) ? input.month : today.slice(0, 7);
+    const p = ym.split('-').map(Number);
+    const start = ym + '-01', last = monthEnd_(ym);
+    const name = MONTH_NAMES_[p[1] - 1] + ' ' + p[0];
+    if (style === 'month') {
+      return { style: style, start: start, end: last, fileKey: ym, sub: name, metaLabel: 'Month',
+        label: name + ' (' + rangeLabel_(start, last) + ')', noun: 'this month' };
+    }
+    if (start > today) throw new Error(name + ' has not started yet.');
+    const end = last < today ? last : today;
+    return { style: style, start: start, end: end, fileKey: ym + '-MTD', sub: name + ' to date', metaLabel: 'Period',
+      label: rangeLabel_(start, end) + ' (month to date)', noun: 'this month' };
+  }
+  const dates = projectEntries.map(function (e) { return e.date; }).sort();
+  const start = dates[0] || today, end = dates.length && dates[dates.length - 1] > today ? dates[dates.length - 1] : today;
+  return { style: style, start: start, end: end, fileKey: 'total', sub: 'Project total', metaLabel: 'Period',
+    label: rangeLabel_(start, end) + ' (all time to date)', noun: 'on this project' };
+}
+
+function reportFileName_(data) {
+  const suffix = String(settings_()['Report Suffix'] || 'clockify');
+  return data.period.style === 'project'
+    ? data.project.id + '_total_' + suffix + '.pdf'
+    : data.period.fileKey + '_' + data.project.id + '_' + suffix + '.pdf';
+}
+
 function makeReport(input) {
-  const data = reportData_(input.week, input.projectId, input);
-  if (!data.entries.length) throw new Error('No time on ' + input.projectId + ' in ' + input.week + '.');
+  const data = reportData_(input);
+  if (!data.entries.length) throw new Error('No time on ' + input.projectId + ' in ' + data.period.label + '.');
   const html = reportHtml_(data);
   const pdf = Utilities.newBlob(html, 'text/html', data.fileName.replace(/\.pdf$/, '.html'))
     .getAs('application/pdf').setName(data.fileName);
@@ -1426,15 +1471,17 @@ function makeReport(input) {
   return { name: data.fileName, url: file.getUrl(), folder: folder.getName(), hours: data.totalHours };
 }
 
+/** One PDF per project that has time in the chosen period (for Project total: per project with time in the chosen week). */
 function makeAllReports(input) {
-  const wk = weekInfo_(input.week);
+  const style = REPORT_STYLES_[input.style] ? input.style : 'week';
+  const range = style === 'project' ? reportPeriod_({ style: 'week', week: input.week }, []) : reportPeriod_(input, []);
   const ids = {};
   readTable_(TAB.ENTRIES).map(entryFromRow_).forEach(function (e) {
-    if (e.week === wk.key && (e.endTS || !e.startTS)) ids[e.projectId] = true;
+    if (e.date >= range.start && e.date <= range.end && (e.endTS || !e.startTS)) ids[e.projectId] = true;
   });
   return Object.keys(ids).sort().map(function (pid) {
     try {
-      return makeReport({ week: wk.key, projectId: pid, showAmounts: input.showAmounts, showPool: input.showPool });
+      return makeReport({ style: style, week: input.week, month: input.month, projectId: pid, showAmounts: input.showAmounts, showPool: input.showPool });
     } catch (err) {
       return { name: pid, error: err.message };
     }
@@ -1443,25 +1490,30 @@ function makeAllReports(input) {
 
 /** Returns the report HTML without saving anything (used for previewing). */
 function previewReport(input) {
-  return reportHtml_(reportData_(input.week, input.projectId, input));
+  return reportHtml_(reportData_(input));
 }
 
-function reportData_(weekKey, projectId, opts) {
+function reportData_(input) {
+  const opts = input || {};
   const settings = settings_();
-  const wk = weekInfo_(weekKey);
-  const project = project_(projectId);
+  const project = project_(opts.projectId);
   const client = clients_().filter(function (c) { return c.id === project.clientId; })[0] || { id: project.clientId, name: '' };
   const rounding = Number(settings['Rounding Minutes']) || 0;
-  const showAmounts = opts && opts.showAmounts !== undefined ? !!opts.showAmounts : yes_(settings['Show Amounts On Reports']);
-  const showPool = opts && opts.showPool !== undefined ? !!opts.showPool : !(settings['Show Hour Pool On Reports'] !== undefined && settings['Show Hour Pool On Reports'] !== '' && !yes_(settings['Show Hour Pool On Reports']));
-  const entries = readTable_(TAB.ENTRIES).map(entryFromRow_)
-    .filter(function (e) { return e.week === wk.key && e.projectId === project.id && (e.endTS || !e.startTS); })
+  const showAmounts = opts.showAmounts !== undefined ? !!opts.showAmounts : yes_(settings['Show Amounts On Reports']);
+  const showPool = opts.showPool !== undefined ? !!opts.showPool : !(settings['Show Hour Pool On Reports'] !== undefined && settings['Show Hour Pool On Reports'] !== '' && !yes_(settings['Show Hour Pool On Reports']));
+  const all = readTable_(TAB.ENTRIES).map(entryFromRow_);
+  const mine = all.filter(function (e) { return e.projectId === project.id && (e.endTS || !e.startTS); });
+  const period = reportPeriod_(opts, mine);
+  const roundH = function (hours) {
+    let h = Math.round(hours * 60) / 60; // whole minutes, so amounts match what the clock shows
+    if (rounding > 0) h = Math.round(h * 60 / rounding) * rounding / 60;
+    return round4_(h);
+  };
+  const entries = mine.filter(function (e) { return e.date >= period.start && e.date <= period.end; })
     .sort(entrySort_)
     .map(function (e) {
-      let h = Math.round(e.hours * 60) / 60; // whole minutes, so amounts match what the clock shows
-      if (rounding > 0) h = Math.round(h * 60 / rounding) * rounding / 60;
-      e.reportHours = round4_(h);
-      e.amount = e.billable ? round2_(h * (Number(e.rate) || 0)) : 0;
+      e.reportHours = roundH(e.hours);
+      e.amount = e.billable ? round2_(e.reportHours * (Number(e.rate) || 0)) : 0;
       return e;
     });
   const byTask = {};
@@ -1476,29 +1528,66 @@ function reportData_(weekKey, projectId, opts) {
   const totalAmount = round2_(entries.reduce(function (s, e) { return s + e.amount; }, 0));
   const rates = entries.filter(function (e) { return e.billable; }).map(function (e) { return Number(e.rate) || 0; })
     .filter(function (r, i, a) { return a.indexOf(r) === i; });
-  let pool = null;
+
+  let pool = null, perEntry = {};
   if (showPool && drawsPool_(project, client)) {
-    const all = readTable_(TAB.ENTRIES).map(entryFromRow_);
-    const l = poolLedger_(client.id, all, projects_(), purchases_(), wk.end);
+    const l = poolLedger_(client.id, all, projects_(), purchases_(), period.end);
     if (l.purchased > 0) {
-      let weekPool = 0, weekOver = 0;
-      entries.forEach(function (e) { const pe = l.perEntry[e.id]; if (pe) { weekPool += pe.pool; weekOver += pe.over; } });
-      pool = { purchased: l.purchased, used: l.used, remaining: l.remaining, overage: l.overage,
-        weekPool: round2_(weekPool), weekOver: round2_(weekOver), asOf: wk.end };
+      perEntry = l.perEntry;
+      let pPool = 0, pOver = 0, overAmt = 0, pOverAmt = 0, logged = 0;
+      const inPeriod = {};
+      entries.forEach(function (e) { inPeriod[e.id] = true; });
+      l.uses.forEach(function (e) {
+        const pe = l.perEntry[e.id]; if (!pe) return;
+        const rate = Number(e.rate) || 0;
+        logged += pe.pool + pe.over;
+        overAmt += pe.over * rate;
+        if (inPeriod[e.id]) { pPool += pe.pool; pOver += pe.over; pOverAmt += pe.over * rate; }
+      });
+      pool = {
+        purchased: l.purchased, used: l.used, remaining: l.remaining, overage: l.overage,
+        blocks: l.purchases.length, logged: round2_(logged),
+        periodPool: round2_(pPool), periodOver: round2_(pOver),
+        overAmount: round2_(overAmt), periodOverAmount: round2_(pOverAmt),
+        asOf: period.end, noun: period.noun, from: l.from, showAmounts: showAmounts
+      };
     }
   }
-  return {
-    pool: pool,
+
+  // Multi-week reports get a week-by-week summary.
+  let byWeek = [];
+  if (period.style !== 'week') {
+    const wk = {}, wOrder = [];
+    entries.forEach(function (e) {
+      const k = e.week || weekKeyOf_(e.date);
+      if (!wk[k]) { wk[k] = { key: k, hours: 0, billable: 0, block: 0, over: 0, amount: 0 }; wOrder.push(k); }
+      const pe = perEntry[e.id];
+      wk[k].hours += e.reportHours;
+      wk[k].billable += e.billable ? e.reportHours : 0;
+      wk[k].amount += e.amount;
+      if (pe) { wk[k].block += pe.pool; wk[k].over += pe.over; }
+    });
+    byWeek = wOrder.sort().map(function (k) {
+      const w = wk[k], info = weekInfo_(k);
+      return { key: k, label: info.label, hours: round4_(w.hours), billable: round4_(w.billable),
+        block: round2_(w.block), over: round2_(w.over), amount: round2_(w.amount) };
+    });
+  }
+
+  const data = {
+    pool: pool, period: period, byWeek: byWeek,
     company: String(settings['Company Name'] || ''),
     contact: String(settings['Company Contact'] || ''),
     title: String(settings['Report Title'] || 'Time Report'),
-    week: wk, project: project, client: client, entries: entries,
+    project: project, client: client, entries: entries,
     byTask: order.map(function (k) { return { task: k, hours: round4_(byTask[k]) }; }),
     totalHours: totalHours, billableHours: billableHours, totalAmount: totalAmount,
     rates: rates, showAmounts: showAmounts, rounding: rounding,
-    fileName: wk.key + '_' + project.id + '_' + String(settings['Report Suffix'] || 'clockify') + '.pdf',
+    priorHours: period.style === 'project' ? Number(project.priorHours) || 0 : 0,
     generated: fmt_(new Date(), 'MMM d, yyyy h:mm a')
   };
+  data.fileName = reportFileName_(data);
+  return data;
 }
 
 function reportHtml_(d) {
@@ -1507,6 +1596,8 @@ function reportHtml_(d) {
   const head = 'padding:6px 8px;border-bottom:2px solid #1f3a5f;font-size:9pt;color:#1f3a5f;text-align:left;';
   const right = 'text-align:right;';
   const amtCols = d.showAmounts;
+  const multiYear = d.period.start.slice(0, 4) !== d.period.end.slice(0, 4);
+  const h2 = function (t) { return '<div style="font-size:10.5pt;font-weight:bold;color:#1f3a5f;margin:4px 0;">' + t + '</div>'; };
 
   let detail = '';
   let lastDate = '';
@@ -1514,7 +1605,7 @@ function reportHtml_(d) {
     const showDate = x.date !== lastDate;
     lastDate = x.date;
     detail += '<tr>' +
-      '<td style="' + cell + 'white-space:nowrap;">' + (showDate ? e(longDay_(x.date)) : '') + '</td>' +
+      '<td style="' + cell + 'white-space:nowrap;">' + (showDate ? e(longDay_(x.date) + (multiYear ? ', ' + x.date.slice(0, 4) : '')) : '') + '</td>' +
       '<td style="' + cell + '">' + e(x.task || '-') + '</td>' +
       '<td style="' + cell + '">' + e(x.description || '') + (x.billable ? '' : ' <i style="color:#777;">(no charge)</i>') + '</td>' +
       '<td style="' + cell + 'white-space:nowrap;">' + (x.start ? e(time12_(x.start) + ' - ' + time12_(x.end)) : '') + '</td>' +
@@ -1533,6 +1624,29 @@ function reportHtml_(d) {
       '<td style="' + cell + right + '">' + pct + '%</td></tr>';
   });
 
+  let weeks = '';
+  if (d.byWeek.length) {
+    const hasPool = !!d.pool;
+    const tot = 'padding:6px 8px;font-weight:bold;font-size:10pt;border-top:2px solid #1f3a5f;';
+    const sum = function (k) { return d.byWeek.reduce(function (s, w) { return s + w[k]; }, 0); };
+    weeks = h2('Summary by week') +
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><tr>' +
+      '<th width="11%" style="' + head + '">Week</th><th width="24%" style="' + head + '">Dates</th>' +
+      '<th style="' + head + right + '">Hours</th><th style="' + head + right + '">Billable</th>' +
+      (hasPool ? '<th style="' + head + right + '">From block</th><th style="' + head + right + '">Beyond block</th>' : '') +
+      (amtCols ? '<th style="' + head + right + '">Amount</th>' : '') + '</tr>' +
+      d.byWeek.map(function (w) {
+        return '<tr><td style="' + cell + '">' + e(w.key) + '</td><td style="' + cell + '">' + e(w.label) + '</td>' +
+          '<td style="' + cell + right + '">' + w.hours.toFixed(2) + '</td><td style="' + cell + right + '">' + w.billable.toFixed(2) + '</td>' +
+          (hasPool ? '<td style="' + cell + right + '">' + w.block.toFixed(2) + '</td><td style="' + cell + right + (w.over > 0.004 ? 'color:#c53030;' : '') + '">' + w.over.toFixed(2) + '</td>' : '') +
+          (amtCols ? '<td style="' + cell + right + '">' + money_(w.amount) + '</td>' : '') + '</tr>';
+      }).join('') +
+      '<tr><td colspan="2" style="' + tot + '">Total</td><td style="' + tot + right + '">' + sum('hours').toFixed(2) + '</td>' +
+      '<td style="' + tot + right + '">' + sum('billable').toFixed(2) + '</td>' +
+      (hasPool ? '<td style="' + tot + right + '">' + sum('block').toFixed(2) + '</td><td style="' + tot + right + '">' + sum('over').toFixed(2) + '</td>' : '') +
+      (amtCols ? '<td style="' + tot + right + '">' + money_(sum('amount')) + '</td>' : '') + '</tr></table>';
+  }
+
   const tot = 'padding:7px 8px;font-weight:bold;font-size:10.5pt;border-top:2px solid #1f3a5f;';
   const totalsRow = '<tr>' +
     '<td colspan="4" style="' + tot + '">Total</td>' +
@@ -1549,6 +1663,7 @@ function reportHtml_(d) {
   const notes = [];
   if (d.billableHours !== d.totalHours) notes.push('Billable hours: ' + d.billableHours.toFixed(2) + ' of ' + d.totalHours.toFixed(2) + '.');
   if (amtCols && d.rates.length) notes.push('Rate: ' + d.rates.map(function (r) { return money_(r) + '/hr'; }).join(', ') + '.');
+  if (d.priorHours > 0) notes.push(d.priorHours.toFixed(2) + ' h were logged on this project before time tracking began and are not included above.');
 
   return '<html><head><meta charset="utf-8"><title>' + e(d.fileName) + '</title>' +
     '<style>@page { size: letter; margin: 0.6in; }</style></head>' +
@@ -1557,22 +1672,23 @@ function reportHtml_(d) {
     '<td style="vertical-align:bottom;"><div style="font-size:17pt;font-weight:bold;color:#1f3a5f;">' + e(d.company) + '</div>' +
     (d.contact ? '<div style="font-size:9pt;color:#5b6573;">' + e(d.contact) + '</div>' : '') + '</td>' +
     '<td style="vertical-align:bottom;text-align:right;"><div style="font-size:13pt;font-weight:bold;">' + e(d.title) + '</div>' +
-    '<div style="font-size:10pt;color:#5b6573;">' + e(d.week.key) + '</div></td>' +
+    '<div style="font-size:10pt;color:#5b6573;">' + e(d.period.sub) + '</div></td>' +
     '</tr></table>' +
     '<div style="border-bottom:3px solid #1f3a5f;margin:6px 0 12px 0;"></div>' +
     '<table style="border-collapse:collapse;margin-bottom:14px;">' +
     meta('Client', e(d.client.id + ' - ' + d.client.name) + (d.client.contact ? ' (' + e(d.client.contact) + ')' : '')) +
     meta('Project', e(d.project.id + ' - ' + d.project.name)) +
-    meta('Week', e(d.week.key + ': ' + d.week.label)) +
+    meta(d.period.metaLabel, e(d.period.label)) +
     meta('Total time', '<b>' + hm_(d.totalHours) + '</b> (' + d.totalHours.toFixed(2) + ' hrs)' +
       (amtCols ? ' &nbsp; <b>' + money_(d.totalAmount) + '</b>' : '')) +
     '</table>' +
     poolHtml_(d.pool) +
-    '<div style="font-size:10.5pt;font-weight:bold;color:#1f3a5f;margin:4px 0;">Summary by task</div>' +
+    weeks +
+    h2('Summary by task') +
     '<table style="width:70%;border-collapse:collapse;margin-bottom:16px;">' +
     '<tr><th style="' + head + '">Task</th><th style="' + head + right + '">Time</th><th style="' + head + right + '">Hours</th><th style="' + head + right + '">Share</th></tr>' +
     summary + '</table>' +
-    '<div style="font-size:10.5pt;font-weight:bold;color:#1f3a5f;margin:4px 0;">Detail</div>' +
+    h2('Detail') +
     '<table style="width:100%;border-collapse:collapse;">' +
     '<tr><th width="11%" style="' + head + '">Date</th><th width="16%" style="' + head + '">Task</th><th style="' + head + '">Description</th>' +
     '<th width="17%" style="' + head + '">Time</th><th width="9%" style="' + head + right + '">Duration</th><th width="8%" style="' + head + right + '">Hours</th>' +
@@ -1583,30 +1699,56 @@ function reportHtml_(d) {
     '</body></html>';
 }
 
-/** Hour-pool usage bar for reports. Built from table cells so both PDF engines draw it the same way. */
+/** Hour-block section: usage bar plus running totals for the whole block, not just this report's period.
+ *  Works the same for prepaid and postpaid blocks: the block is the hours agreed, whenever it is invoiced. */
 function poolHtml_(pool) {
   if (!pool) return '';
-  const total = Math.max(pool.purchased, pool.used, 0.01);
-  const before = Math.max(0, pool.used - pool.weekPool);
+  const total = Math.max(pool.purchased + pool.overage, 0.01);
+  const before = Math.max(0, round2_(pool.used - pool.periodPool));
+  const overBefore = Math.max(0, round2_(pool.overage - pool.periodOver));
   const pct = function (h) { return Math.max(0, Math.round(h / total * 1000) / 10); };
   const seg = function (h, color) { return h > 0.004 ? '<td width="' + pct(h) + '%" style="background-color:' + color + ';height:16px;padding:0;font-size:1pt;">&nbsp;</td>' : ''; };
   const bar = '<table style="width:100%;border-collapse:collapse;border:1px solid #9aa5b3;"><tr>' +
-    seg(before, '#1f3a5f') + seg(pool.weekPool, '#d69e2e') + seg(pool.remaining, '#e2e8f0') + '</tr></table>';
+    seg(before, '#1f3a5f') + seg(pool.periodPool, '#d69e2e') + seg(pool.remaining, '#e2e8f0') +
+    seg(overBefore, '#e8a3a3') + seg(pool.periodOver, '#c53030') + '</tr></table>';
   const key = function (color, label, h) {
-    return '<td width="12" style="background-color:' + color + ';border:1px solid #9aa5b3;font-size:6pt;">&nbsp;</td>' +
-      '<td style="font-size:8.5pt;padding:2px 16px 2px 6px;white-space:nowrap;">' + label + ': <b>' + h.toFixed(2) + ' h</b></td>';
+    return '<td width="2%" style="background-color:' + color + ';border:1px solid #9aa5b3;font-size:6pt;">&nbsp;</td>' +
+      '<td width="23%" style="font-size:8.5pt;padding:2px 8px 2px 6px;white-space:nowrap;">' + label + ': <b>' + h.toFixed(2) + ' h</b></td>';
   };
-  return '<div style="font-size:10.5pt;font-weight:bold;color:#1f3a5f;margin:4px 0;">Prepaid hours</div>' +
+  const keys = [key('#1f3a5f', pool.noun === 'on this project' ? 'Used elsewhere' : 'Used before', before),
+    key('#d69e2e', 'Used ' + pool.noun, pool.periodPool), key('#e2e8f0', 'Remaining', pool.remaining)];
+  if (pool.overage > 0.004) keys.push(key('#c53030', 'Beyond block', pool.overage));
+
+  const c = 'padding:3px 8px;font-size:9.5pt;border-bottom:1px solid #e2e6eb;';
+  const r = c + 'text-align:right;white-space:nowrap;';
+  const row = function (label, h, amt, style) {
+    return '<tr><td width="' + (pool.showAmounts ? '64' : '78') + '%" style="' + c + (style || '') + '">' + label + '</td><td width="18%" style="' + r + (style || '') + '">' + h.toFixed(2) + ' h</td>' +
+      (pool.showAmounts ? '<td width="18%" style="' + r + (style || '') + '">' + (amt === null || amt === undefined ? '' : money_(amt)) + '</td>' : '') + '</tr>';
+  };
+  const bold = 'font-weight:bold;';
+  const red = 'color:#c53030;';
+  let table = row('Block hours' + (pool.blocks > 1 ? ' (' + pool.blocks + ' blocks)' : ''), pool.purchased) +
+    row('Billable hours to date', pool.logged) +
+    row('Applied to the block', pool.used) +
+    row('Remaining in the block', pool.remaining, null, bold);
+  if (pool.overage > 0.004) {
+    if (overBefore > 0.004) table += row('Beyond the block, before ' + pool.noun, overBefore, round2_(pool.overAmount - pool.periodOverAmount));
+    if (pool.periodOver > 0.004) table += row('Beyond the block, ' + pool.noun, pool.periodOver, pool.periodOverAmount);
+    table += row('Beyond the block, total to date', pool.overage, pool.overAmount, bold + red);
+  }
+
+  return h2Pool_('Hour block') +
     '<div style="font-size:9pt;color:#5b6573;margin-bottom:4px;">' + pool.used.toFixed(2) + ' of ' + pool.purchased.toFixed(2) +
-    ' purchased hours used as of ' + esc_(longDay_(pool.asOf)) + ', ' + pool.asOf.slice(0, 4) + '</div>' +
+    ' block hours used as of ' + esc_(longDay_(pool.asOf)) + ', ' + pool.asOf.slice(0, 4) +
+    (pool.from ? ' (block tracking from ' + esc_(longDay_(pool.from)) + ', ' + pool.from.slice(0, 4) + ')' : '') + '</div>' +
     bar +
-    '<table style="border-collapse:collapse;margin:6px 0 4px 0;"><tr>' +
-    key('#1f3a5f', 'Used before this week', before) + key('#d69e2e', 'Used this week', pool.weekPool) + key('#e2e8f0', 'Remaining', pool.remaining) +
-    '</tr></table>' +
-    (pool.weekOver > 0.004 ? '<div style="font-size:9pt;color:#c53030;margin-bottom:2px;">' + pool.weekOver.toFixed(2) +
-      ' h this week went beyond the prepaid hours and is billed separately.</div>' : '') +
+    '<table style="width:100%;border-collapse:collapse;margin:6px 0 6px 0;"><tr>' + keys.join('') + '</tr></table>' +
+    '<table style="width:' + (pool.showAmounts ? '62' : '48') + '%;border-collapse:collapse;margin-bottom:6px;">' + table + '</table>' +
+    (pool.overage > 0.004 ? '<div style="font-size:8.5pt;color:#5b6573;margin-bottom:2px;">Hours beyond the block are billed separately.</div>' : '') +
     '<div style="margin-bottom:14px;"></div>';
 }
+
+function h2Pool_(t) { return '<div style="font-size:10.5pt;font-weight:bold;color:#1f3a5f;margin:4px 0;">' + t + '</div>'; }
 
 function reportFolder_(project) {
   const settings = settings_();
